@@ -142,7 +142,17 @@ jobs:
       - name: Build Rust
         uses: ./.github/actions/build-rust
         env:
-          AFFINE_PRO_PUBLIC_KEY: ${{ secrets.AFFINE_PRO_PUBLIC_KEY }}
+          # Self-hosted servers refuse to boot unless this key is embedded at
+          # build time (CryptoHelper.onModuleInit, base/helpers/crypto.ts). This
+          # fork has no access to upstream's secret, so use the same public key
+          # upstream commits in build-test.yml, which is also the value of
+          # DEBUG_AFFINE_PRO_PUBLIC_KEY in packages/backend/native/src/lib.rs.
+          # It is a public verification key, not a credential.
+          AFFINE_PRO_PUBLIC_KEY: |
+            -----BEGIN PUBLIC KEY-----
+            MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEObwJiTmbui7rkWfPJ7Lozvuy2Rcl
+            otcrb0V6dlS2ijKEShm7ZttTwQn08xzesdjX/AxpoR5X9yfoHkauIBuuMQ==
+            -----END PUBLIC KEY-----
           AFFINE_PRO_LICENSE_AES_KEY: ${{ secrets.AFFINE_PRO_LICENSE_AES_KEY }}
         with:
           target: ${{ matrix.targets.name }}
