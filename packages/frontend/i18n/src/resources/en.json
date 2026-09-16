@@ -791,6 +791,7 @@
   "com.affine.nameWorkspace.affine-cloud.description": "AFFiNE Sync keeps your workspace backed up, available across devices, and ready for collaboration and publishing.",
   "com.affine.nameWorkspace.affine-cloud.title": "Sync across devices with AFFiNE Sync",
   "com.affine.nameWorkspace.affine-cloud.web-tips": "In the web app, workspaces are saved in this browser. If disk space runs low, the browser may remove them automatically. For fully local storage, use the desktop app.",
+  "com.affine.nameWorkspace.admin-only": "Only server administrators can create cloud workspaces on this server.",
   "com.affine.nameWorkspace.button.cancel": "Cancel",
   "com.affine.nameWorkspace.button.create": "Create",
   "com.affine.nameWorkspace.description": "A workspace is your virtual space to capture, create and plan as just one person or together as a team.",

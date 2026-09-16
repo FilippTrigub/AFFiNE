@@ -2,6 +2,7 @@ use affine_core::auth::{LoginMethodFacts, login_methods};
 use chrono::Utc;
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
+use super::super::allowlist;
 use super::{
   super::{
     RuntimeError, RuntimeResult, issuance,
@@ -71,6 +72,12 @@ pub(in super::super) async fn bind_and_issue(
     .await
     .map_err(|error| RuntimeError::database("find OAuth email", error))?;
     let user = users.first();
+    // `login_methods` ignores `email_domain_allowed` on the oauth arm, so the
+    // allowlist has to be enforced explicitly here. Existing identities are
+    // exempt: the allowlist gates account creation, not sign-in.
+    if users.is_empty() && !allowlist::email_domain_allowed(&email, &runtime.auth.allowed_email_domains) {
+      return Err(RuntimeError::invalid_state("sign_up_forbidden"));
+    }
     let allowed = login_methods(LoginMethodFacts {
       identity_count: users.len(),
       registered: user.is_some_and(|row| row.get("registered")),

@@ -16,6 +16,7 @@ export interface AuthConfig {
   };
   allowSignup: boolean;
   allowSignupForOauth: boolean;
+  allowedEmailDomains: ConfigItem<string[]>;
   requireEmailDomainVerification: boolean;
   requireEmailVerification: boolean;
   newAccountActionDelay: number;
@@ -45,6 +46,20 @@ defineModuleConfig('auth', {
   allowSignupForOauth: {
     desc: 'Whether allow new registrations via configured oauth.',
     default: true,
+  },
+  allowedEmailDomains: {
+    desc: [
+      'Restrict account creation to these email domains.',
+      'An empty list (the default) disables the allowlist and permits any domain.',
+      'Entries are case-insensitive and may use a leading `*.` wildcard:',
+      '`example.com` matches only that exact domain, while `*.example.com` matches',
+      'the apex domain and every subdomain beneath it (`a.example.com`, `a.b.example.com`).',
+      'This gates OAuth sign-up, magic-link sign-up, admin-created accounts and bulk imports.',
+      'Existing accounts are never locked out by this setting.',
+    ].join(' '),
+    default: [] as string[],
+    shape: z.array(z.string().trim().min(1)),
+    schema: { type: 'array', items: { type: 'string' } },
   },
   requireEmailDomainVerification: {
     desc: 'Whether require email domain record verification before accessing restricted resources.',
