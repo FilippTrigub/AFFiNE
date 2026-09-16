@@ -53,9 +53,11 @@ jobs:
           set -euo pipefail
           SHORT_HASH="${GITHUB_SHA::9}"
           APP_VERSION="$(node -p "require('./package.json').version")"
-          echo "GIT_SHORT_HASH=${SHORT_HASH}" >> "$GITHUB_OUTPUT"
-          echo "APP_VERSION=${APP_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "IMAGE=ghcr.io/filipptrigub/affine:stable-${SHORT_HASH}" >> "$GITHUB_OUTPUT"
+          {
+            echo "GIT_SHORT_HASH=${SHORT_HASH}"
+            echo "APP_VERSION=${APP_VERSION}"
+            echo "IMAGE=ghcr.io/filipptrigub/affine:stable-${SHORT_HASH}"
+          } >> "$GITHUB_OUTPUT"
 
   build:
     name: Build Images
