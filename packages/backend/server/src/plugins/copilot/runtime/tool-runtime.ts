@@ -5,13 +5,13 @@ import { Config } from '../../../base';
 import { DocReader, DocWriter } from '../../../core/doc';
 import { PermissionAccess } from '../../../core/permission';
 import { Models } from '../../../models';
+import { DocumentRetrievalService } from '../../retrieval';
 import { DelegatedEditorService } from '../delegated/service';
 import {
   type CopilotChatOptions,
   type CopilotChatTools,
 } from '../providers/types';
 import { ArtifactRetrievalService } from '../retrieval/artifact';
-import { DocumentRetrievalService } from '../retrieval/document';
 import {
   buildDocCanvasGetter,
   buildDocContentGetter,

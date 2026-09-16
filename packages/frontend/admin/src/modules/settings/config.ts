@@ -179,6 +179,16 @@ export const KNOWN_CONFIG_GROUPS = [
       'provider.password',
     ],
   } as ConfigGroup<'indexer'>,
+  {
+    name: 'MCP',
+    module: 'mcp',
+    fields: [
+      {
+        key: 'enabled',
+        desc: 'Expose the workspace MCP endpoint at /api/workspaces/:workspaceId/mcp, letting external agents read and search docs with a per-workspace credential. Independent of AI / Copilot: no model provider or API key is required.',
+      },
+    ],
+  } as ConfigGroup<'mcp'>,
 ];
 
 export const UNKNOWN_CONFIG_GROUPS = ALL_CONFIGURABLE_MODULES.filter(

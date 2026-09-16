@@ -1,13 +1,20 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { SearchProviderUnavailable } from '../../../base';
-import { DocReader } from '../../../core/doc';
-import { PermissionAccess } from '../../../core/permission';
-import type { DocVisibility } from '../../../core/utils/blocksuite';
-import { type DocChunkSimilarity, Models } from '../../../models';
-import { IndexerService } from '../../indexer/service';
-import type { SearchDoc } from '../../indexer/types';
-import type { EmbeddingRouteContext } from '../embedding/route-context';
+import { SearchProviderUnavailable } from '../../base';
+import { DocReader } from '../../core/doc';
+import { PermissionAccess } from '../../core/permission';
+import type { DocVisibility } from '../../core/utils/blocksuite';
+import { type DocChunkSimilarity, Models } from '../../models';
+import { IndexerService } from '../indexer/service';
+import type { SearchDoc } from '../indexer/types';
+/**
+ * Structural copy of the copilot embedding route context. Declared locally so
+ * this module carries no import from the copilot plugin — consumers that do
+ * have embeddings (copilot) stay structurally compatible.
+ */
+export type EmbeddingRouteContext = {
+  byokLeaseId?: string;
+};
 
 type DocumentSearchContext =
   | {
@@ -17,7 +24,7 @@ type DocumentSearchContext =
     }
   | undefined;
 
-type DocumentVectorSearch = {
+export type DocumentVectorSearch = {
   readonly canEmbedding: boolean;
   matchWorkspaceDocCandidates(
     workspaceId: string,

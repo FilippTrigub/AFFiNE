@@ -44,7 +44,6 @@ import type { ResolvedPrompt } from '../../plugins/copilot/prompt/spec';
 import { ChatMessageAttachment } from '../../plugins/copilot/providers/types';
 import { TextStreamParser } from '../../plugins/copilot/providers/utils';
 import { ArtifactRetrievalService } from '../../plugins/copilot/retrieval/artifact';
-import { DocumentRetrievalService } from '../../plugins/copilot/retrieval/document';
 import {
   projectActionEventToChatEvent,
   projectActionResultToAssistantTurn,
@@ -72,6 +71,7 @@ import {
 import { buildDocCanvasGetter } from '../../plugins/copilot/tools/doc-canvas-read';
 import { buildDocumentSearch } from '../../plugins/copilot/tools/doc-search';
 import type { IndexerService } from '../../plugins/indexer/service';
+import { DocumentRetrievalService } from '../../plugins/retrieval';
 
 const test = ava;
 

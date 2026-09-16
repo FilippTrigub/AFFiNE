@@ -13,11 +13,11 @@ import {
 } from '@nestjs/common';
 import type { Request, Response } from 'express';
 
-import { ActionForbidden, Throttle } from '../../../base';
-import { Public } from '../../../core/auth';
-import { extractTokenFromHeader } from '../../../core/auth/input';
-import { CopilotEnabled } from '../feature';
+import { ActionForbidden, Throttle } from '../../base';
+import { Public } from '../../core/auth';
+import { extractTokenFromHeader } from '../../core/auth/input';
 import { McpCredentialService } from './credential';
+import { McpEnabled } from './feature';
 import { WorkspaceMcpProvider, type WorkspaceMcpServer } from './provider';
 
 type JsonRpcId = string | number | null;
@@ -47,7 +47,7 @@ const SUPPORTED_PROTOCOL_VERSIONS = new Set([
   '2024-10-07',
 ]);
 
-@CopilotEnabled()
+@McpEnabled()
 @Controller('/api/workspaces/:workspaceId/mcp')
 export class WorkspaceMcpController {
   private readonly logger = new Logger(WorkspaceMcpController.name);

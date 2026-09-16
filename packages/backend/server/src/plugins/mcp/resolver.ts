@@ -1,4 +1,3 @@
-import { BadRequestException } from '@nestjs/common';
 import {
   Args,
   Field,
@@ -13,10 +12,10 @@ import {
 } from '@nestjs/graphql';
 import { McpAccessMode } from '@prisma/client';
 
-import { CurrentUser } from '../../../core/auth';
-import { PermissionAccess } from '../../../core/permission';
-import { CopilotEnabled } from '../feature';
+import { CurrentUser } from '../../core/auth';
+import { PermissionAccess } from '../../core/permission';
 import { McpCredentialService } from './credential';
+import { McpEnabled } from './feature';
 
 registerEnumType(McpAccessMode, { name: 'McpAccessMode' });
 
@@ -90,7 +89,7 @@ class CreateMcpCredentialInput {
   expirationDays!: number;
 }
 
-@CopilotEnabled()
+@McpEnabled()
 @Resolver()
 export class McpCredentialResolver {
   constructor(
@@ -109,7 +108,10 @@ export class McpCredentialResolver {
 
   @Query(() => Boolean)
   mcpCredentialReadWriteAvailable() {
-    return env.dev || env.namespaces.canary;
+    // Upstream gates the write tools to dev/canary builds. This fork exposes
+    // the MCP endpoint as a first-class integration, so write access is
+    // governed by the credential's access mode alone.
+    return true;
   }
 
   @Mutation(() => RevealedMcpCredentialType)
@@ -117,13 +119,6 @@ export class McpCredentialResolver {
     @CurrentUser() user: CurrentUser,
     @Args('input') input: CreateMcpCredentialInput
   ) {
-    if (
-      input.accessMode === McpAccessMode.READ_WRITE &&
-      !env.dev &&
-      !env.namespaces.canary
-    ) {
-      throw new BadRequestException('MCP write tools are not available');
-    }
     await this.ac
       .user(user.id)
       .workspace(input.workspaceId)

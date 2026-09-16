@@ -1,7 +1,7 @@
 import { Logger } from '@nestjs/common';
 import { z } from 'zod';
 
-import type { DocumentRetrievalService } from '../retrieval/document';
+import type { DocumentRetrievalService } from '../../retrieval';
 import { toolError } from './error';
 import { defineTool } from './tool';
 import type { CopilotChatOptions, DocSource, DocumentScope } from './types';

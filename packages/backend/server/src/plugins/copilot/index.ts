@@ -14,9 +14,6 @@ import { IndexerModule } from '../indexer';
 import { CopilotAttachmentController } from './attachment-controller';
 import { CopilotController } from './controller';
 import { CopilotFeatureGuard, CopilotFeatureService } from './feature';
-import { WorkspaceMcpController } from './mcp/controller';
-import { McpCredentialService } from './mcp/credential';
-import { McpCredentialResolver } from './mcp/resolver';
 import {
   COPILOT_API_PROVIDERS,
   COPILOT_FEATURE_PROVIDERS,
@@ -82,12 +79,7 @@ export class CopilotApiModule {}
     CopilotFeatureModule,
     CopilotApiModule,
   ],
-  providers: [McpCredentialService, McpCredentialResolver],
-  controllers: [
-    CopilotAttachmentController,
-    CopilotController,
-    WorkspaceMcpController,
-  ],
+  controllers: [CopilotAttachmentController, CopilotController],
 })
 export class CopilotModule {}
 

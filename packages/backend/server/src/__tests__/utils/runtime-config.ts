@@ -33,6 +33,9 @@ export async function createTestRuntimeConfig(
         enabled: true,
         storage: storage('copilot'),
       },
+      mcp: {
+        enabled: true,
+      },
       indexer: {
         enabled: indexer.enabled,
         provider: indexer.provider,

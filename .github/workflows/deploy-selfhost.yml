@@ -1,0 +1,136 @@
+name: Deploy self-host
+
+# Fork-only workflow: builds the multi-arch image from `main` and rolls it out to
+# the Oracle Cloud VM behind https://base.drone-aid.fr.
+#
+# Upstream never touches this file, so it does not conflict on rebase.
+#
+# Branch model: work lands on `canary` (which also tracks upstream); `main` is
+# synced from `canary` deliberately, and only that promotion deploys. Pulling
+# upstream into canary therefore never ships to production on its own.
+#
+# Required repository secrets:
+#   ORACLE_HOST              public IP / hostname of the VM
+#   ORACLE_USER              ssh user (ubuntu)
+#   ORACLE_SSH_KEY           private key, full PEM including header/footer
+#   ORACLE_SSH_KNOWN_HOSTS   one known_hosts line pinning the host key
+#
+# The VM's /opt/affine/compose.yml must reference `image: ${AFFINE_IMAGE}`;
+# this workflow writes that variable into /opt/affine/.env before pulling.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never let two rollouts touch the VM at once, and never cancel one midway —
+# an interrupted `compose up` can leave the stack half-recreated.
+concurrency:
+  group: deploy-selfhost
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      APP_VERSION: ${{ steps.meta.outputs.APP_VERSION }}
+      GIT_SHORT_HASH: ${{ steps.meta.outputs.GIT_SHORT_HASH }}
+      IMAGE: ${{ steps.meta.outputs.IMAGE }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Compute image metadata
+        id: meta
+        run: |
+          set -euo pipefail
+          SHORT_HASH="${GITHUB_SHA::9}"
+          APP_VERSION="$(node -p "require('./package.json').version")"
+          echo "GIT_SHORT_HASH=${SHORT_HASH}" >> "$GITHUB_OUTPUT"
+          echo "APP_VERSION=${APP_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "IMAGE=ghcr.io/filipptrigub/affine:selfhost-${SHORT_HASH}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build Images
+    needs: prepare
+    uses: ./.github/workflows/build-images.yml
+    with:
+      build-type: selfhost
+      app-version: ${{ needs.prepare.outputs.APP_VERSION }}
+      git-short-hash: ${{ needs.prepare.outputs.GIT_SHORT_HASH }}
+
+  deploy:
+    name: Roll out to Oracle VM
+    needs: [prepare, build]
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      IMAGE: ${{ needs.prepare.outputs.IMAGE }}
+    steps:
+      - name: Configure SSH
+        env:
+          ORACLE_SSH_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+          ORACLE_SSH_KNOWN_HOSTS: ${{ secrets.ORACLE_SSH_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          install -m 600 /dev/null ~/.ssh/oracle_key
+          printf '%s\n' "$ORACLE_SSH_KEY" > ~/.ssh/oracle_key
+          # Pin the host key: without this the rollout is trivially MITM-able.
+          printf '%s\n' "$ORACLE_SSH_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy
+        env:
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_USER: ${{ secrets.ORACLE_USER }}
+          # Job-scoped token, valid only for this run. Lets the VM pull a private
+          # GHCR package without parking a long-lived PAT on the box.
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REGISTRY_USER: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/oracle_key -o StrictHostKeyChecking=yes \
+            "${ORACLE_USER}@${ORACLE_HOST}" \
+            "IMAGE='${IMAGE}' REGISTRY_USER='${REGISTRY_USER}' REGISTRY_TOKEN='${REGISTRY_TOKEN}' bash -s" <<'REMOTE'
+          set -euo pipefail
+          cd /opt/affine
+
+          # Record the image currently running so the rollout can be undone by hand.
+          if [ -f .env ]; then cp .env .env.previous; fi
+          printf 'AFFINE_IMAGE=%s\n' "$IMAGE" > .env
+
+          cleanup() { docker logout ghcr.io >/dev/null 2>&1 || true; }
+          trap cleanup EXIT
+
+          printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$REGISTRY_USER" --password-stdin
+          docker compose pull
+          docker compose up -d --remove-orphans
+          docker image prune -f --filter 'until=168h' || true
+          REMOTE
+
+      - name: Verify the site is serving
+        env:
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_USER: ${{ secrets.ORACLE_USER }}
+        run: |
+          set -euo pipefail
+          for attempt in $(seq 1 30); do
+            code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+              https://base.drone-aid.fr/ || true)"
+            if [ "$code" = "200" ]; then
+              echo "Site healthy after ${attempt} attempt(s)."
+              exit 0
+            fi
+            echo "attempt ${attempt}: HTTP ${code}, retrying..."
+            sleep 10
+          done
+          echo "::error::Site did not return HTTP 200 within 5 minutes."
+          echo "Previous image is recorded in /opt/affine/.env.previous on the VM."
+          ssh -i ~/.ssh/oracle_key -o StrictHostKeyChecking=yes \
+            "${ORACLE_USER}@${ORACLE_HOST}" \
+            'cd /opt/affine && docker compose ps && docker compose logs --tail=50 affine' || true
+          exit 1

@@ -63,6 +63,7 @@ import { CopilotModule, CopilotWorkerModule } from './plugins/copilot';
 import { GCloudModule } from './plugins/gcloud';
 import { IndexerModule } from './plugins/indexer';
 import { LicenseModule } from './plugins/license';
+import { McpModule } from './plugins/mcp';
 import { OAuthModule } from './plugins/oauth';
 import { PaymentModule } from './plugins/payment';
 import { WorkerModule } from './plugins/worker';
@@ -213,6 +214,7 @@ export function buildAppModule(env: Env) {
       LicenseModule,
       PaymentModule,
       CopilotModule,
+      McpModule,
       CaptchaModule,
       OAuthModule,
       CalendarModule,

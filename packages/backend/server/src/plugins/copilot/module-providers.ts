@@ -1,3 +1,4 @@
+import { DOCUMENT_VECTOR_SEARCH, DocumentRetrievalService } from '../retrieval';
 import { CopilotAccessService } from './access';
 import { ByokEntitlementPolicy, WorkspaceByokResolver } from './byok';
 import { HistoryAttachmentUrlProjector } from './compat/history-attachment-url-projector';
@@ -17,14 +18,9 @@ import {
   NativeEmbeddingService,
 } from './embedding';
 import { CopilotEmbeddingRealtimeProvider } from './embedding/realtime';
-import { WorkspaceMcpProvider } from './mcp/provider';
 import { PromptService } from './prompt';
 import { CopilotResolver, UserCopilotResolver } from './resolver';
 import { ArtifactRetrievalService } from './retrieval/artifact';
-import {
-  DOCUMENT_VECTOR_SEARCH,
-  DocumentRetrievalService,
-} from './retrieval/document';
 import { ActionRuntimeBridge } from './runtime/action-runtime-bridge';
 import { CapabilityRuntime } from './runtime/capability-runtime';
 import { CopilotRuntimeEventConsumer } from './runtime/copilot-runtime-event-consumer';
@@ -118,8 +114,6 @@ export const COPILOT_RESOLVER_PROVIDERS = [
 
 export const COPILOT_JOB_PROVIDERS = [CopilotCronJobs];
 
-export const COPILOT_MCP_PROVIDERS = [WorkspaceMcpProvider];
-
 export const COPILOT_KERNEL_PROVIDERS = [
   ...COPILOT_PROVIDER_PROVIDERS,
   ...COPILOT_RUNTIME_PROVIDERS,
@@ -131,7 +125,4 @@ export const COPILOT_FEATURE_PROVIDERS = [
   ...COPILOT_WORKSPACE_PROVIDERS,
 ];
 
-export const COPILOT_API_PROVIDERS = [
-  ...COPILOT_RESOLVER_PROVIDERS,
-  ...COPILOT_MCP_PROVIDERS,
-];
+export const COPILOT_API_PROVIDERS = [...COPILOT_RESOLVER_PROVIDERS];

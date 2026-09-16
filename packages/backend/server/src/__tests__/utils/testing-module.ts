@@ -142,6 +142,9 @@ export async function createTestingModule(
         config: { path: runtimeConfig.storagePath },
       },
     },
+    mcp: {
+      enabled: true,
+    },
   });
 
   const testingModule = module as TestingModule;

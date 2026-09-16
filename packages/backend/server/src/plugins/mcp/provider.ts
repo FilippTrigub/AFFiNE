@@ -2,8 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { McpAccessMode } from '@prisma/client';
 import z from 'zod/v3';
 
-import { DocReader, DocWriter } from '../../../core/doc';
-import { PermissionAccess } from '../../../core/permission';
+import { DocReader, DocWriter } from '../../core/doc';
+import { PermissionAccess } from '../../core/permission';
 import { DocumentRetrievalService } from '../retrieval/document';
 
 type McpTextContent = {
@@ -202,10 +202,7 @@ export class WorkspaceMcpProvider {
 
     const tools = [readDocument, docSearch];
 
-    if (
-      accessMode === McpAccessMode.READ_WRITE &&
-      (env.dev || env.namespaces.canary)
-    ) {
+    if (accessMode === McpAccessMode.READ_WRITE) {
       const createDocument = defineTool({
         name: 'create_document',
         title: 'Create Document',

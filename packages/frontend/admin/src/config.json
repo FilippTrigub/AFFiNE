@@ -371,6 +371,13 @@
       "desc": "Indexer search service auth password, if not set, basic auth will be disabled. Optional for remote providers"
     }
   },
+  "mcp": {
+    "enabled": {
+      "type": "Boolean",
+      "desc": "Enable the workspace MCP endpoint (/api/workspaces/:workspaceId/mcp).",
+      "env": "AFFINE_MCP_ENABLED"
+    }
+  },
   "oauth": {
     "providers.google": {
       "type": "Object",

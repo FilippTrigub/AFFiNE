@@ -11,8 +11,8 @@ import { Config } from '../../base';
 import { ServerFeature, ServerService } from '../../core';
 import { Models } from '../../models';
 import { CopilotFeatureService } from '../../plugins/copilot/feature';
-import { McpCredentialService } from '../../plugins/copilot/mcp/credential';
-import { WorkspaceMcpProvider } from '../../plugins/copilot/mcp/provider';
+import { McpCredentialService } from '../../plugins/mcp/credential';
+import { WorkspaceMcpProvider } from '../../plugins/mcp/provider';
 import { installMockCopilotRuntime } from '../mocks';
 import { createTestingApp, createWorkspace, type TestingApp } from '../utils';
 import {
@@ -70,10 +70,6 @@ test('disabled copilot hides its server feature and rejects every API transport'
       )
     );
     await app.GET('/api/copilot/unsplash/photos').expect(403);
-    await app
-      .POST(`/api/workspaces/${workspace.id}/mcp`)
-      .send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
-      .expect(403);
   } finally {
     config.copilot.enabled = true;
     feature.onConfigChanged({ updates: { copilot: { enabled: true } } });
@@ -286,6 +282,18 @@ test('MCP credentials remain endpoint-bound through rotate, revoke and expiry', 
     ),
     ['read_document', 'doc_search']
   );
+  t.deepEqual(
+    (
+      await provider.for(user.id, target.id, McpAccessMode.READ_WRITE)
+    ).tools.map(tool => tool.name),
+    [
+      'read_document',
+      'doc_search',
+      'create_document',
+      'update_document',
+      'update_document_meta',
+    ]
+  );
 
   const rotated = await credentials.rotate(
     issued.credential.id,
@@ -316,4 +324,34 @@ test('MCP credentials remain endpoint-bound through rotate, revoke and expiry', 
     data: { expiresAt: new Date(0) },
   });
   await t.throwsAsync(credentials.authenticate(disabled.token, target.id));
+});
+
+test('MCP endpoint is gated by mcp.enabled and is independent of copilot', async t => {
+  const { app } = t.context;
+  const config = app.get(Config);
+  await app.signupV1();
+  const workspace = await createWorkspace(app);
+  const body = { jsonrpc: '2.0', id: 1, method: 'initialize', params: {} };
+
+  config.mcp.enabled = false;
+  try {
+    const disabled = await app
+      .POST(`/api/workspaces/${workspace.id}/mcp`)
+      .send(body);
+    t.is(disabled.status, 403);
+  } finally {
+    config.mcp.enabled = true;
+  }
+
+  // Copilot off must no longer close the MCP endpoint: an unauthenticated call
+  // gets as far as credential authentication (401), not the feature gate (403).
+  config.copilot.enabled = false;
+  try {
+    const copilotOff = await app
+      .POST(`/api/workspaces/${workspace.id}/mcp`)
+      .send(body);
+    t.is(copilotOff.status, 401);
+  } finally {
+    config.copilot.enabled = true;
+  }
 });

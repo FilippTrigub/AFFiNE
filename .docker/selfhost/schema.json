@@ -1385,6 +1385,17 @@
         }
       }
     },
+    "mcp": {
+      "type": "object",
+      "description": "Configuration for mcp module",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable the workspace MCP endpoint (/api/workspaces/:workspaceId/mcp).\n@default false\n@environment `AFFINE_MCP_ENABLED`",
+          "default": false
+        }
+      }
+    },
     "oauth": {
       "type": "object",
       "description": "Configuration for oauth module",

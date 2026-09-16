@@ -8,9 +8,9 @@ import {
 import { Transactional } from '@nestjs-cls/transactional';
 import type { McpAccessMode } from '@prisma/client';
 
-import { CryptoHelper, EventBus } from '../../../base';
-import { MCP_CREDENTIAL_TOKEN_PREFIX } from '../../../core/auth/token';
-import { Models } from '../../../models';
+import { CryptoHelper, EventBus } from '../../base';
+import { MCP_CREDENTIAL_TOKEN_PREFIX } from '../../core/auth/token';
+import { Models } from '../../models';
 
 const ALLOWED_EXPIRATION_DAYS = new Set([30, 90, 365]);
 const ROTATION_GRACE_MS = 24 * 60 * 60 * 1000;
