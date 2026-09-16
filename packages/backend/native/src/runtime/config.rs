@@ -35,6 +35,7 @@ pub(crate) struct BackendRuntimeConfig {
 pub(crate) struct AuthRuntimeConfig {
   pub(crate) allow_signup: bool,
   pub(crate) allow_signup_for_oauth: bool,
+  pub(crate) allowed_email_domains: Vec<String>,
   pub(crate) require_email_domain_verification: bool,
   pub(crate) session_ttl_seconds: i64,
   pub(crate) session_ttr_seconds: i64,
@@ -51,6 +52,7 @@ impl Default for AuthRuntimeConfig {
     Self {
       allow_signup: true,
       allow_signup_for_oauth: true,
+      allowed_email_domains: Vec::new(),
       require_email_domain_verification: false,
       session_ttl_seconds: 15 * 24 * 60 * 60,
       session_ttr_seconds: 7 * 24 * 60 * 60,
@@ -795,6 +797,7 @@ struct AuthConfigFile {
   new_account_action_delay: Option<i64>,
   allow_signup: Option<bool>,
   allow_signup_for_oauth: Option<bool>,
+  allowed_email_domains: Option<Vec<String>>,
   require_email_domain_verification: Option<bool>,
   session: AuthSessionConfigFile,
   token: AuthTokenConfigFile,
@@ -902,6 +905,13 @@ impl AppConfigFile {
     if let Some(auth) = &self.auth {
       config.allow_signup = auth.allow_signup.unwrap_or(config.allow_signup);
       config.allow_signup_for_oauth = auth.allow_signup_for_oauth.unwrap_or(config.allow_signup_for_oauth);
+      if let Some(domains) = &auth.allowed_email_domains {
+        config.allowed_email_domains = domains
+          .iter()
+          .map(|domain| domain.trim().to_ascii_lowercase())
+          .filter(|domain| !domain.is_empty())
+          .collect();
+      }
       config.require_email_domain_verification = auth
         .require_email_domain_verification
         .unwrap_or(config.require_email_domain_verification);

@@ -58,6 +58,11 @@ export const KNOWN_CONFIG_GROUPS = [
       'allowSignup',
       'allowSignupForOauth',
       {
+        key: 'allowedEmailDomains',
+        type: 'JSON',
+        desc: 'Restrict account creation to these email domains, as a JSON array, e.g. ["example.com", "*.example.org"]. A leading "*." matches the apex domain and every subdomain beneath it. An empty list allows any domain. Existing accounts are never locked out.',
+      },
+      {
         key: 'newAccountActionDelay',
         type: 'Number',
         desc: 'Minimum account age in seconds before accounts can invite members, create invite links, or publish documents. Set to 0 to disable.',

@@ -1,9 +1,16 @@
-import { Button, ConfirmModal, notify, RowInput } from '@affine/component';
+import {
+  Button,
+  ConfirmModal,
+  notify,
+  RowInput,
+  Tooltip,
+} from '@affine/component';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import {
   AuthService,
   type Server,
   ServersService,
+  UserFeatureService,
 } from '@affine/core/modules/cloud';
 import {
   type DialogComponentProps,
@@ -14,8 +21,13 @@ import { WorkspacesService } from '@affine/core/modules/workspace';
 import { buildShowcaseWorkspace } from '@affine/core/utils/first-app-data';
 import { useI18n } from '@affine/i18n';
 import track from '@affine/track';
-import { FrameworkScope, useLiveData, useService } from '@toeverything/infra';
-import { useCallback, useState } from 'react';
+import {
+  FrameworkScope,
+  useLiveData,
+  useService,
+  useServiceOptional,
+} from '@toeverything/infra';
+import { useCallback, useEffect, useState } from 'react';
 
 import * as styles from './index.css';
 import { ServerSelector } from './server-selector';
@@ -129,6 +141,18 @@ const CustomConfirmButton = ({
 
   const session = useService(AuthService).session;
   const loginStatus = useLiveData(session.status$);
+  // Server-scoped: only resolves when a cloud server is selected.
+  const userFeatureService = useServiceOptional(UserFeatureService);
+  const isAdmin = useLiveData(userFeatureService?.userFeature.isAdmin$ ?? null);
+
+  useEffect(() => {
+    userFeatureService?.userFeature.revalidate();
+  }, [userFeatureService]);
+
+  // Cloud workspace creation is admin-only server-side; mirror that here so the
+  // button does not fail after the fact. `isAdmin` is null while still loading.
+  const blockedForNonAdmin =
+    !!server && loginStatus === 'authenticated' && isAdmin === false;
   const globalDialogService = useService(GlobalDialogService);
   const workspacesService = useService(WorkspacesService);
 
@@ -170,9 +194,9 @@ const CustomConfirmButton = ({
     handleConfirm();
   }, [handleConfirm, loginStatus, openSignInModal, server]);
 
-  return (
+  const button = (
     <Button
-      disabled={!workspaceName}
+      disabled={!workspaceName || blockedForNonAdmin}
       data-testid="create-workspace-create-button"
       variant="primary"
       onClick={handleCheckSessionAndConfirm}
@@ -180,5 +204,13 @@ const CustomConfirmButton = ({
     >
       {t['com.affine.nameWorkspace.button.create']()}
     </Button>
+  );
+
+  return blockedForNonAdmin ? (
+    <Tooltip content={t['com.affine.nameWorkspace.admin-only']()}>
+      <span>{button}</span>
+    </Tooltip>
+  ) : (
+    button
   );
 };

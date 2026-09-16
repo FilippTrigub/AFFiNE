@@ -1,3 +1,4 @@
+mod allowlist;
 mod cookie;
 mod issuance;
 mod keyring;

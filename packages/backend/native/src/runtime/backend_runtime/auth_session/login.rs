@@ -8,6 +8,7 @@ use rand::Rng;
 use sqlx::{PgPool, Postgres, Row, Transaction};
 use subtle::ConstantTimeEq;
 
+use super::allowlist;
 use super::{
   RuntimeError, RuntimeResult, issuance, mail, methods,
   session::{LockedUser, decision_time, lock_user},
@@ -98,7 +99,9 @@ pub(super) async fn prepare_magic_link(
       .fetch_all(&mut *tx)
       .await
       .map_err(|error| RuntimeError::database("lock magic link user", error))?;
-  let email_domain_allowed = !users.is_empty() || signup_domain_allowed == Some(true);
+  let email_domain_allowed = !users.is_empty()
+    || (allowlist::email_domain_allowed(&email, &config.auth.allowed_email_domains)
+      && signup_domain_allowed == Some(true));
   let magic_link_allowed = login_methods(LoginMethodFacts {
     identity_count: users.len(),
     registered: false,
@@ -250,8 +253,8 @@ pub(super) async fn complete_magic_link(
     }
   }
   let email_domain_allowed = !users.is_empty()
-    || !config.auth.require_email_domain_verification
-    || methods::verify_email_domain_records(&email).await?;
+    || (allowlist::email_domain_allowed(&email, &config.auth.allowed_email_domains)
+      && (!config.auth.require_email_domain_verification || methods::verify_email_domain_records(&email).await?));
   let magic_link_allowed = login_methods(LoginMethodFacts {
     identity_count: users.len(),
     registered: false,

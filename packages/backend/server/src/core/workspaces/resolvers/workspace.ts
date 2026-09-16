@@ -19,6 +19,7 @@ import {
 } from '../../../base';
 import { Models } from '../../../models';
 import { CurrentUser } from '../../auth';
+import { Admin } from '../../common';
 import type { DotToUnderline } from '../../permission';
 import {
   mapPermissionsToGraphqlPermissions,
@@ -202,6 +203,10 @@ export class WorkspaceResolver {
     };
   }
 
+  // Creating a cloud workspace is a server-admin privilege. Non-admins can still
+  // be invited into existing workspaces, and local workspaces are unaffected
+  // (they are created client-side and never reach the server).
+  @Admin()
   @Mutation(() => WorkspaceType, {
     description: 'Create a new workspace',
   })

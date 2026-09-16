@@ -16,12 +16,14 @@ import { isNil, omitBy } from 'lodash-es';
 
 import {
   CannotDeleteOwnAccount,
+  Config,
   EmailAlreadyUsed,
   EventBus,
   type FileUpload,
   ImageFormatNotSupported,
   OneMB,
   readBufferWithLimit,
+  SignUpForbidden,
   sniffMime,
   Throttle,
   UserNotFound,
@@ -33,6 +35,7 @@ import {
   UserSettingsSchema,
 } from '../../models';
 import { processImage } from '../../native';
+import { isEmailDomainAllowed } from '../auth/email-allowlist';
 import { Public } from '../auth/guard';
 import { sessionUser } from '../auth/service';
 import { CurrentUser } from '../auth/session';
@@ -275,8 +278,15 @@ export class UserManagementResolver {
     private readonly db: PrismaClient,
     private readonly models: Models,
     private readonly runtime: BackendRuntimeProvider,
-    private readonly event: EventBus
+    private readonly event: EventBus,
+    private readonly config: Config
   ) {}
+
+  private assertEmailDomainAllowed(email: string) {
+    if (!isEmailDomainAllowed(email, this.config.auth.allowedEmailDomains)) {
+      throw new SignUpForbidden();
+    }
+  }
 
   @Query(() => Int, {
     description: 'Get users count',
@@ -346,6 +356,8 @@ export class UserManagementResolver {
   async createUser(
     @Args({ name: 'input', type: () => CreateUserInput }) input: CreateUserInput
   ) {
+    this.assertEmailDomainAllowed(input.email);
+
     const { id } = await this.models.user.create({
       ...input,
       registered: true,
@@ -362,6 +374,8 @@ export class UserManagementResolver {
     @Args({ name: 'input', type: () => ImportUsersInput })
     input: ImportUsersInput
   ): Promise<(typeof UserImportResultType)[]> {
+    input.users.forEach(user => this.assertEmailDomainAllowed(user.email));
+
     const results = await this.models.user.importUsers(input.users);
 
     return results.map((result, i) => {

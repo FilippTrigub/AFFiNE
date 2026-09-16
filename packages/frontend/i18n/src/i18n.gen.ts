@@ -3206,6 +3206,10 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.nameWorkspace.affine-cloud.web-tips"](): string;
     /**
+      * `Only server administrators can create cloud workspaces on this server.`
+      */
+    ["com.affine.nameWorkspace.admin-only"](): string;
+    /**
       * `Cancel`
       */
     ["com.affine.nameWorkspace.button.cancel"](): string;
