@@ -55,7 +55,7 @@ jobs:
           APP_VERSION="$(node -p "require('./package.json').version")"
           echo "GIT_SHORT_HASH=${SHORT_HASH}" >> "$GITHUB_OUTPUT"
           echo "APP_VERSION=${APP_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "IMAGE=ghcr.io/filipptrigub/affine:selfhost-${SHORT_HASH}" >> "$GITHUB_OUTPUT"
+          echo "IMAGE=ghcr.io/filipptrigub/affine:stable-${SHORT_HASH}" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build Images
@@ -66,7 +66,9 @@ jobs:
       packages: write
     uses: ./.github/workflows/build-images.yml
     with:
-      build-type: selfhost
+      # Must be one of canary|beta|stable|internal - tools/cli/src/rspack
+      # validates BUILD_TYPE and fails the frontend build otherwise.
+      build-type: stable
       app-version: ${{ needs.prepare.outputs.APP_VERSION }}
       git-short-hash: ${{ needs.prepare.outputs.GIT_SHORT_HASH }}
 
