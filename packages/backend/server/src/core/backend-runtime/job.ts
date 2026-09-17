@@ -1,5 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { Cron, CronExpression } from '@nestjs/schedule';
+import { PrismaClient } from '@prisma/client';
 
 import {
   ConfigFactory,
@@ -21,6 +22,8 @@ const SELECTED_DOCUMENT_UNIT_LIMIT = 20_000;
 const SELECTED_DOCUMENT_TEXT_BYTE_LIMIT = 16 * 1024 * 1024;
 const SELECTED_DOCUMENT_PRIORITY = 1000;
 const SELECTED_DOCUMENT_WAIT_MS = 90_000;
+
+const PARKED_WORKSPACE_SAMPLE = 5;
 
 @Injectable()
 export class BackendRuntimeEmbeddingService {
@@ -173,9 +176,13 @@ export class BackendRuntimeHousekeepingJob {
 
 @Injectable()
 export class BackendRuntimeSearchJob {
+  private readonly logger = new Logger(BackendRuntimeSearchJob.name);
+  private parkedWorkspaceSignature = '';
+
   constructor(
     private readonly rt: BackendRuntimeProvider,
-    private readonly config: ConfigFactory
+    private readonly config: ConfigFactory,
+    private readonly db: PrismaClient
   ) {}
 
   @Cron(CronExpression.EVERY_30_SECONDS)
@@ -186,6 +193,7 @@ export class BackendRuntimeSearchJob {
       const reconciled = await this.rt.reconcileSearchProjection(limit);
       const status = (await this.rt.searchStatus()) as {
         ready?: boolean;
+        generationId?: string;
         state?: string;
         metrics?: {
           scanCursor?: number;
@@ -245,10 +253,65 @@ export class BackendRuntimeSearchJob {
             reason: 'canonical_permission',
           });
       }
+      await this.recordParkedWorkspaces(status.generationId);
       return reconciled;
     } catch (error) {
       metrics.search.counter('reconcile_failures').add(1);
       throw error;
+    }
+  }
+
+  /**
+   * `mark_workspace_failed` parks a workspace at `available_at='infinity'` with
+   * `last_error='search_workspace_reconcile_failed'`, and the reconcile
+   * selection excludes both, so the row is never retried: every search in that
+   * workspace fails with `index_failed` until an operator clears it by hand.
+   *
+   * None of the other metrics can show this. `pendingPublications` deliberately
+   * subtracts parked workspaces, so when one parks the pending count *drops* and
+   * `generation_ready` stays 1 - every existing signal reads healthier at the
+   * moment search dies there. Hence counting the rows directly.
+   *
+   * Never let this break reconciliation: it is an observer, and a failure to
+   * observe must not fail the tick it is observing.
+   */
+  private async recordParkedWorkspaces(generationId?: string) {
+    if (!generationId) return;
+    try {
+      const [parked] = await this.db.$queryRaw<
+        { total: number; workspaces: string[] | null }[]
+      >`
+        WITH parked AS (
+          SELECT workspace_id
+          FROM search_projection.workspace_states
+          WHERE generation_id = ${generationId}::uuid
+            AND available_at = 'infinity'::timestamptz
+        )
+        SELECT
+          (SELECT COUNT(*)::int FROM parked) AS total,
+          (SELECT ARRAY_AGG(workspace_id)
+           FROM (
+             SELECT workspace_id FROM parked
+             ORDER BY workspace_id LIMIT ${PARKED_WORKSPACE_SAMPLE}
+           ) head) AS workspaces
+      `;
+      const total = parked?.total ?? 0;
+      const workspaces = parked?.workspaces ?? [];
+      metrics.search.gauge('parked_workspaces').record(total);
+      // Log on change rather than every tick, or a single parked workspace
+      // would emit 2880 identical lines a day and train everyone to ignore it.
+      const signature = workspaces.join(',');
+      if (total > 0 && signature !== this.parkedWorkspaceSignature) {
+        this.logger.error(
+          `search projection parked ${total} workspace(s) at available_at=infinity; every search there fails with index_failed until an operator clears both last_error and available_at: ${workspaces.join(', ')}`
+        );
+      }
+      this.parkedWorkspaceSignature = signature;
+    } catch (error) {
+      this.logger.error(
+        'Failed to count parked search workspaces',
+        error as Error
+      );
     }
   }
 }

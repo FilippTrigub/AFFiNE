@@ -1,3 +1,4 @@
+import { PrismaClient } from '@prisma/client';
 import test from 'ava';
 import Sinon from 'sinon';
 
@@ -87,7 +88,8 @@ test('does not schedule or run native search reconciliation when disabled', asyn
   } as unknown as ConfigFactory;
   const job = new BackendRuntimeSearchJob(
     runtime as unknown as BackendRuntimeProvider,
-    config
+    config,
+    {} as PrismaClient
   );
 
   t.is(await job.reconcileProjection(), 0);
