@@ -84,6 +84,16 @@ export const KNOWN_CONFIG_GROUPS = [
     operations: [AuthSigningKeys],
   } as ConfigGroup<'auth'>,
   {
+    name: 'Guest Access',
+    module: 'flags',
+    fields: [
+      {
+        key: 'allowGuestDemoWorkspace',
+        desc: 'Let signed-out visitors use a local demo workspace, seeded in their own browser from a bundled template. It holds no server data, but it does let anyone open the app. Turn this off to send signed-out visitors straight to the sign-in page.',
+      },
+    ],
+  } as ConfigGroup<'flags'>,
+  {
     name: 'Notification',
     module: 'mailer',
     fields: [
@@ -172,6 +182,10 @@ export const KNOWN_CONFIG_GROUPS = [
     name: 'Indexer',
     module: 'indexer',
     fields: [
+      {
+        key: 'enabled',
+        desc: 'Enable full-text indexing of workspace documents. Required for in-app document search and for the MCP doc_search tool; both fail with SEARCH_UNAVAILABLE while it is off. The default embedded provider needs no external service.',
+      },
       {
         key: 'provider.type',
         type: 'Enum',
