@@ -381,6 +381,10 @@ test.describe('embed youtube card', () => {
   test(scoped`create youtube card by slash menu`, async ({ page }) => {
     expectConsoleMessage(page, /Unrecognized feature/, 'warning');
     expectConsoleMessage(page, /Failed to load resource/);
+    // Resolving the embed needs the network. When the runner cannot reach
+    // YouTube the adapter registry warns instead, which the global console
+    // guard would otherwise turn into a failure of an otherwise passing test.
+    expectConsoleMessage(page, /No available adapters/, 'warning');
     await createBookmarkBlockBySlashMenu(page, YOUTUBE_URL);
     const snapshot = (await getPageSnapshot(page)) as BlockSnapshot;
     expect(ignoreSnapshotId(snapshot)).toMatchSnapshot('embed-youtube.json');
@@ -389,6 +393,7 @@ test.describe('embed youtube card', () => {
   test(scoped`change youtube card style`, async ({ page }) => {
     expectConsoleMessage(page, /Unrecognized feature/, 'warning');
     expectConsoleMessage(page, /Failed to load resource/);
+    expectConsoleMessage(page, /No available adapters/, 'warning');
 
     await createBookmarkBlockBySlashMenu(page, YOUTUBE_URL);
     const youtube = page.locator('affine-embed-youtube-block');
