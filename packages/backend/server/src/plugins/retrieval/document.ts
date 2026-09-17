@@ -1,6 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 
-import { SearchProviderUnavailable } from '../../base';
+import {
+  SearchIndexNotReady,
+  SearchPermissionSyncing,
+  SearchProviderUnavailable,
+} from '../../base';
 import { DocReader } from '../../core/doc';
 import { PermissionAccess } from '../../core/permission';
 import type { DocVisibility } from '../../core/utils/blocksuite';
@@ -75,6 +79,24 @@ function hasVectorProjectionMetadata(hit: DocChunkSimilarity) {
   return Boolean(hit.unitId && hit.visibility);
 }
 
+/**
+ * Lexical outages that clear on their own. The projection cron reconciles every
+ * 30s, so a caller that retries will succeed without anyone intervening; the
+ * embedded index additionally rebuilds from scratch after every restart, which
+ * makes this the common case rather than the rare one.
+ *
+ * Deliberately excluded:
+ * - `SearchIndexFailed` — the workspace is parked at `available_at = 'infinity'`
+ *   and never retried, so it needs an operator and must stay loud.
+ * - `SearchProviderUnavailable` — indistinguishable from a misconfigured
+ *   provider, which never heals. It keeps its upstream handling above.
+ */
+function selfHealingLexicalOutage(error: unknown) {
+  if (error instanceof SearchPermissionSyncing) return 'PERMISSION_SYNCING';
+  if (error instanceof SearchIndexNotReady) return 'INDEX_BUILDING';
+  return null;
+}
+
 @Injectable()
 export class DocumentRetrievalService {
   constructor(
@@ -125,6 +147,10 @@ export class DocumentRetrievalService {
     if (signal?.aborted) throw new Error('SEARCH_ABORTED');
     const lexicalResult =
       lexicalAttempt.status === 'fulfilled' ? lexicalAttempt.value : null;
+    const lexicalOutage =
+      lexicalAttempt.status === 'rejected'
+        ? selfHealingLexicalOutage(lexicalAttempt.reason)
+        : null;
     const vectorResult =
       vectorAttempt.status === 'fulfilled' ? vectorAttempt.value : null;
     const lexical = lexicalResult
@@ -208,7 +234,21 @@ export class DocumentRetrievalService {
       );
     });
     if (lexicalResult === null && vector === null) {
-      if (!docIds?.length) throw new Error('SEARCH_UNAVAILABLE');
+      if (!docIds?.length) {
+        // Nothing to fall back on. A self-healing outage reports an empty,
+        // explicitly-degraded result so the caller can retry; anything else
+        // stays a hard error, carrying the specific reason where we have one.
+        if (lexicalOutage) {
+          return {
+            retrievalMode: 'none',
+            degradedReason: lexicalOutage,
+            hits: [] as DocumentSearchHit[],
+          } as const;
+        }
+        throw lexicalAttempt.status === 'rejected'
+          ? lexicalAttempt.reason
+          : new Error('SEARCH_UNAVAILABLE');
+      }
       const readable = await this.readable(
         userId,
         workspaceId,
