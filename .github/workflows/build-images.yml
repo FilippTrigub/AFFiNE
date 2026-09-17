@@ -120,13 +120,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
+        # This fork deploys only to an arm64 VM. Building x64/armv7 as well
+        # roughly triples this stage for binaries nothing consumes;
+        # docker-clean.mjs keeps whichever binary matches TARGETARCH and
+        # tolerates the others being absent.
         targets:
-          - name: x86_64-unknown-linux-gnu
-            file: server-native.x64.node
           - name: aarch64-unknown-linux-gnu
             file: server-native.arm64.node
-          - name: armv7-unknown-linux-gnueabihf
-            file: server-native.armv7.node
 
     steps:
       - uses: actions/checkout@v7
@@ -276,7 +276,7 @@ jobs:
           context: .
           push: true
           pull: true
-          platforms: linux/amd64,linux/arm64,linux/arm/v7
+          platforms: linux/arm64
           provenance: true
           file: .github/deployment/node/Dockerfile
           tags: ghcr.io/filipptrigub/affine:${{inputs.build-type}}-${{ inputs.git-short-hash }}
