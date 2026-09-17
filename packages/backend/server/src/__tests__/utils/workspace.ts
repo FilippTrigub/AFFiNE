@@ -5,11 +5,25 @@ import {
 } from '@affine/graphql';
 import { PrismaClient } from '@prisma/client';
 
+import { FeatureService } from '../../core/features';
 import { WorkspaceRole } from '../../core/permission/types';
 import type { WorkspaceType } from '../../core/workspaces';
 import { TestingApp } from './testing-app';
 
+/**
+ * Fabricates a cloud workspace for tests that need one to exist.
+ *
+ * `createWorkspace` is `@Admin()`-guarded, so the acting user is promoted to
+ * administrator first. Callers of this helper are testing something else -
+ * blobs, docs, invites, copilot - and should not have to care about the guard.
+ * The guard's own contract is covered by
+ * `workspace.e2e.ts > should not let a non-admin create a workspace`.
+ */
 export async function createWorkspace(app: TestingApp) {
+  const userId = app.currentUserId;
+  if (userId) {
+    await app.get(FeatureService).addAdmin(userId);
+  }
   const { createWorkspace } = await app.gql({ query: createWorkspaceMutation });
   await app.get(PrismaClient).snapshot.create({
     data: {
