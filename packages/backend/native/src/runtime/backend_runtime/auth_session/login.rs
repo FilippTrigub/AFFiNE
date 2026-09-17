@@ -8,9 +8,8 @@ use rand::Rng;
 use sqlx::{PgPool, Postgres, Row, Transaction};
 use subtle::ConstantTimeEq;
 
-use super::allowlist;
 use super::{
-  RuntimeError, RuntimeResult, issuance, mail, methods,
+  RuntimeError, RuntimeResult, allowlist, issuance, mail, methods,
   session::{LockedUser, decision_time, lock_user},
   types::{LoginResult, SessionIssueInput},
 };
