@@ -16,6 +16,7 @@ import { openHomePage } from '@affine-test/kit/utils/load-page';
 import {
   clickNewPageButton,
   createLinkedPage,
+  type,
   waitForEditorLoad,
 } from '@affine-test/kit/utils/page-logic';
 import { expect } from '@playwright/test';
@@ -72,11 +73,16 @@ test.describe('edgeless', () => {
     await clickNewPageButton(page);
     await clickEdgelessModeButton(page);
     await clickView(page, [0, 0]);
-    await page.keyboard.type('@' + title);
-    await page
-      .getByTestId('cmdk-quick-search')
-      .getByText(/^Synced Block Test$/)
-      .click();
+    // `@` opens the quick-search modal asynchronously, and it steals focus
+    // partway through. Typing the name in the same keystroke run loses whatever
+    // lands before the handover - CI caught this with only the trailing "st"
+    // reaching the search input. Wait for the modal, as the kit helper
+    // `createSyncedPageInEdgeless` already does.
+    await page.keyboard.type('@', { delay: 50 });
+    const cmdkPopover = page.getByTestId('cmdk-quick-search');
+    await expect(cmdkPopover).toBeVisible();
+    await type(page, title);
+    await cmdkPopover.getByText(/^Synced Block Test$/).click();
 
     await fitViewportToContent(page);
   });
