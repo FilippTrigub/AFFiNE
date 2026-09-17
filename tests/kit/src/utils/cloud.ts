@@ -121,12 +121,26 @@ export async function createRandomUser(): Promise<{
         createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
         password: await hash(user.password),
         features: {
-          create: {
-            reason: 'created by test case',
-            activated: true,
-            name: 'free_plan_v1',
-            type: 1,
-          },
+          create: [
+            {
+              reason: 'created by test case',
+              activated: true,
+              name: 'free_plan_v1',
+              type: 1,
+            },
+            // Creating a cloud workspace is admin-only, and that covers the
+            // local-to-cloud upload behind `enableCloudWorkspace` because it
+            // reaches the same mutation. These suites exercise editor and
+            // collaboration journeys rather than authorization, so the fixture
+            // user is an administrator. The guard's own contract is covered by
+            // `workspace.e2e.ts > should not let a non-admin create a workspace`.
+            {
+              reason: 'created by test case',
+              activated: true,
+              name: 'administrator',
+              type: 0,
+            },
+          ],
         },
       },
     });
