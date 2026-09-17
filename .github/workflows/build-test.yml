@@ -1,17 +1,23 @@
 name: Build & Test
 
+# Fork policy: CI runs on exactly one event - a push to `canary`.
+#
+# This fork develops on feature branches cut from `canary` and promotes
+# `canary` -> `main` to deploy, so `canary` is the single integration point
+# worth spending a full matrix on. Upstream's other triggers are dropped
+# deliberately:
+#   - `pull_request` re-ran the whole matrix on every push to every PR branch,
+#     which is the bulk of the cost and duplicates what the canary run covers.
+#   - `merge_group` is for merge queues, which this fork does not use.
+#   - the beta/stable/v*.x branches are upstream release lines we never push.
+# Run the matrix on demand from the Actions tab if a branch needs it early.
 on:
   push:
     branches:
       - canary
-      - beta
-      - stable
-      - v[0-9]+.[0-9]+.x-staging
-      - v[0-9]+.[0-9]+.x
     paths-ignore:
       - README.md
-  pull_request:
-  merge_group:
+  workflow_dispatch:
 
 env:
   DEBUG: napi:*
