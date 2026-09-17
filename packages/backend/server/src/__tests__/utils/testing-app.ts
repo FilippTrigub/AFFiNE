@@ -91,6 +91,14 @@ export class TestingApp extends ApplyType<INestApplication>() {
   private csrfCookie: string | null = null;
   private readonly userCookies: Set<string> = new Set();
 
+  /**
+   * Id of the user the next request will be sent as, or `null` when no user is
+   * logged in. The user cookie holds the id verbatim - see `switchUser`.
+   */
+  get currentUserId(): string | null {
+    return this.currentUserCookie;
+  }
+
   readonly create!: ReturnType<typeof createFactory>;
   readonly mails!: MockMailer;
 
