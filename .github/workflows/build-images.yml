@@ -120,13 +120,18 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # This fork deploys only to an arm64 VM. Building x64/armv7 as well
-        # roughly triples this stage for binaries nothing consumes;
-        # docker-clean.mjs keeps whichever binary matches TARGETARCH and
-        # tolerates the others being absent.
+        # All three targets must be built even though this fork only deploys
+        # arm64: packages/backend/native/index.js picks the binary with a static
+        # ternary of require() calls, so the bundler resolves every branch and
+        # fails if any .node file is missing. They build in parallel, so this
+        # costs little wall-clock; the image platform list below is the saving.
         targets:
+          - name: x86_64-unknown-linux-gnu
+            file: server-native.x64.node
           - name: aarch64-unknown-linux-gnu
             file: server-native.arm64.node
+          - name: armv7-unknown-linux-gnueabihf
+            file: server-native.armv7.node
 
     steps:
       - uses: actions/checkout@v7
