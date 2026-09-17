@@ -2,10 +2,9 @@ use affine_core::auth::{LoginMethodFacts, login_methods};
 use chrono::Utc;
 use sqlx::{PgPool, Postgres, Row, Transaction};
 
-use super::super::allowlist;
 use super::{
   super::{
-    RuntimeError, RuntimeResult, issuance,
+    RuntimeError, RuntimeResult, allowlist, issuance,
     login::{canonical_email, lock_email},
     oauth_http::OAuthAccount,
     session::{decision_time, lock_user},

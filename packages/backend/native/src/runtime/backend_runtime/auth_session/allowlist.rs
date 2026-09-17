@@ -48,9 +48,7 @@ pub(crate) fn email_domain_allowed(email: &str, allowed_domains: &[String]) -> b
     return false;
   };
 
-  allowed_domains
-    .iter()
-    .any(|pattern| matches_domain(&domain, pattern))
+  allowed_domains.iter().any(|pattern| matches_domain(&domain, pattern))
 }
 
 #[cfg(test)]
