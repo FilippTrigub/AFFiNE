@@ -3,7 +3,11 @@ import { randomUUID } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import type { Request, Response } from 'express';
 
-import { getClientVersionFromRequest, getRequestCookie } from '../../base';
+import {
+  EventBus,
+  getClientVersionFromRequest,
+  getRequestCookie,
+} from '../../base';
 import { isNativeClientRequest } from './input';
 import { AuthService } from './service';
 import type { CurrentUser } from './session';
@@ -22,7 +26,10 @@ export type NativeLoginResult = {
 
 @Injectable()
 export class SessionIssuer {
-  constructor(private readonly auth: AuthService) {}
+  constructor(
+    private readonly auth: AuthService,
+    private readonly event: EventBus
+  ) {}
 
   target(req: Request, clientVersion?: string): SessionIssueInput {
     const version =
@@ -41,6 +48,16 @@ export class SessionIssuer {
   }
 
   apply(res: Response, result: NativeLoginResult) {
+    // Users created by the Rust runtime — OAuth and magic link — never pass
+    // through `models/user.ts`, so `user.created` does not fire for them. This
+    // is the one point every such sign-in reaches, before the native-client
+    // branch below returns early.
+    if (result.created) {
+      this.event.emitDetached('user.signedUp', {
+        id: result.user.id,
+        email: result.user.email,
+      });
+    }
     if (result.exchangeCode) {
       this.auth.clearCookies(res);
       return;

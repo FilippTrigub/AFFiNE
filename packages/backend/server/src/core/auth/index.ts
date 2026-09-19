@@ -21,6 +21,7 @@ import { SessionExchangeService } from './session-exchange';
 import { SessionIssuer } from './session-issuer';
 import { AuthSigningKeyRing } from './signing-key';
 import { AuthSigningKeyResolver } from './signing-key-resolver';
+import { SignupGrantsService } from './signup-grants';
 
 @Module({
   imports: [
@@ -44,6 +45,7 @@ import { AuthSigningKeyResolver } from './signing-key-resolver';
     AuthSigningKeyRing,
     AuthSigningKeyResolver,
     AuthWebsocketOptionsProvider,
+    SignupGrantsService,
   ],
   exports: [
     AuthService,

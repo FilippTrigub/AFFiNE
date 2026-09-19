@@ -791,13 +791,42 @@ impl RedisRuntimeConfig {
   }
 }
 
+/// An allowlist entry is either a bare pattern or an object carrying that same
+/// pattern plus the workspaces a new account is granted. Only the pattern
+/// reaches this half: workspace grants are applied on the TypeScript side, and
+/// deserializing them here exists solely so an object entry does not fail the
+/// whole auth config.
+#[derive(Deserialize)]
+#[serde(untagged)]
+enum AllowlistEntryFile {
+  Pattern(String),
+  Entry {
+    pattern: String,
+    #[serde(default)]
+    #[allow(dead_code)]
+    workspaces: Vec<String>,
+    #[serde(default)]
+    #[allow(dead_code)]
+    role: Option<String>,
+  },
+}
+
+impl AllowlistEntryFile {
+  fn pattern(&self) -> &str {
+    match self {
+      Self::Pattern(pattern) => pattern,
+      Self::Entry { pattern, .. } => pattern,
+    }
+  }
+}
+
 #[derive(Default, Deserialize)]
 #[serde(rename_all = "camelCase", default)]
 struct AuthConfigFile {
   new_account_action_delay: Option<i64>,
   allow_signup: Option<bool>,
   allow_signup_for_oauth: Option<bool>,
-  allowed_email_domains: Option<Vec<String>>,
+  allowed_email_domains: Option<Vec<AllowlistEntryFile>>,
   require_email_domain_verification: Option<bool>,
   session: AuthSessionConfigFile,
   token: AuthTokenConfigFile,
@@ -905,11 +934,11 @@ impl AppConfigFile {
     if let Some(auth) = &self.auth {
       config.allow_signup = auth.allow_signup.unwrap_or(config.allow_signup);
       config.allow_signup_for_oauth = auth.allow_signup_for_oauth.unwrap_or(config.allow_signup_for_oauth);
-      if let Some(domains) = &auth.allowed_email_domains {
-        config.allowed_email_domains = domains
+      if let Some(entries) = &auth.allowed_email_domains {
+        config.allowed_email_domains = entries
           .iter()
-          .map(|domain| domain.trim().to_ascii_lowercase())
-          .filter(|domain| !domain.is_empty())
+          .map(|entry| entry.pattern().trim().to_ascii_lowercase())
+          .filter(|pattern| !pattern.is_empty())
           .collect();
       }
       config.require_email_domain_verification = auth

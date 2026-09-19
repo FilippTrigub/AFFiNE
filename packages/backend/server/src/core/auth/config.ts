@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 import { defineModuleConfig } from '../../base';
+import type { AllowlistEntry } from './email-allowlist';
 
 export interface AuthConfig {
   session: {
@@ -16,7 +17,7 @@ export interface AuthConfig {
   };
   allowSignup: boolean;
   allowSignupForOauth: boolean;
-  allowedEmailDomains: ConfigItem<string[]>;
+  allowedEmailDomains: ConfigItem<AllowlistEntry[]>;
   requireEmailDomainVerification: boolean;
   requireEmailVerification: boolean;
   newAccountActionDelay: number;
@@ -49,17 +50,48 @@ defineModuleConfig('auth', {
   },
   allowedEmailDomains: {
     desc: [
-      'Restrict account creation to these email domains.',
-      'An empty list (the default) disables the allowlist and permits any domain.',
-      'Entries are case-insensitive and may use a leading `*.` wildcard:',
+      'Restrict account creation to these email domains or addresses.',
+      'An empty list (the default) disables the allowlist and permits anyone.',
+      'Entries are case-insensitive. A pattern containing `@` matches that one address;',
       '`example.com` matches only that exact domain, while `*.example.com` matches',
       'the apex domain and every subdomain beneath it (`a.example.com`, `a.b.example.com`).',
+      'An entry may instead be an object `{ "pattern": ..., "workspaces": [...], "role": ... }`,',
+      'which additionally makes a newly created account an immediate member of those',
+      'workspaces as Collaborator (the default) or Admin.',
       'This gates OAuth sign-up, magic-link sign-up, admin-created accounts and bulk imports.',
-      'Existing accounts are never locked out by this setting.',
+      'Existing accounts are never locked out, and never retroactively granted, by this setting.',
     ].join(' '),
-    default: [] as string[],
-    shape: z.array(z.string().trim().min(1)),
-    schema: { type: 'array', items: { type: 'string' } },
+    default: [] as AllowlistEntry[],
+    shape: z.array(
+      z.union([
+        z.string().trim().min(1),
+        z
+          .object({
+            pattern: z.string().trim().min(1),
+            workspaces: z.array(z.string().trim().min(1)).default([]),
+            role: z.enum(['Admin', 'Collaborator']).default('Collaborator'),
+          })
+          .strict(),
+      ])
+    ),
+    schema: {
+      type: 'array',
+      items: {
+        oneOf: [
+          { type: 'string' },
+          {
+            type: 'object',
+            required: ['pattern'],
+            additionalProperties: false,
+            properties: {
+              pattern: { type: 'string' },
+              workspaces: { type: 'array', items: { type: 'string' } },
+              role: { type: 'string', enum: ['Admin', 'Collaborator'] },
+            },
+          },
+        ],
+      },
+    },
   },
   requireEmailDomainVerification: {
     desc: 'Whether require email domain record verification before accessing restricted resources.',

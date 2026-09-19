@@ -60,7 +60,7 @@ export const KNOWN_CONFIG_GROUPS = [
       {
         key: 'allowedEmailDomains',
         type: 'JSON',
-        desc: 'Restrict account creation to these email domains, as a JSON array, e.g. ["example.com", "*.example.org"]. A leading "*." matches the apex domain and every subdomain beneath it. An empty list allows any domain. Existing accounts are never locked out.',
+        desc: 'Restrict account creation to these email domains or addresses, as a JSON array. A bare string is a pattern: "someone@example.com" matches that one address, "example.com" matches only that domain, and "*.example.org" matches the apex domain and every subdomain beneath it. An entry may instead be an object {"pattern": "example.com", "workspaces": ["<workspace-id>"], "role": "Collaborator"}, which also makes a newly created account an immediate member of those workspaces ("Collaborator" by default, or "Admin"). An empty list allows anyone; a non-empty list that matches nobody blocks every sign-up path, including admin-created users. Existing accounts are never locked out, and never retroactively granted.',
       },
       {
         key: 'newAccountActionDelay',

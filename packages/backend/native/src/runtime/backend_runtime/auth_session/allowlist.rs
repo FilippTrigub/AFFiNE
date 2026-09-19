@@ -6,11 +6,17 @@
 //! while the sign-up paths below enforce this one.
 //!
 //! Rules:
-//!   - An empty allowlist permits every domain.
+//!   - An empty allowlist permits every address.
 //!   - Matching is case-insensitive and ignores surrounding whitespace.
+//!   - A pattern containing `@` is a full address: it matches that address
+//!     alone.
 //!   - `example.com` matches that domain and nothing else.
 //!   - `*.example.com` matches the apex `example.com` and every subdomain
 //!     beneath it, at any depth (`a.example.com`, `a.b.example.com`).
+//!
+//! Workspace grants attached to an entry are resolved on the TypeScript side
+//! only; this half decides whether an address may sign up at all, so it needs
+//! nothing but the pattern.
 
 /// Returns the lowercased domain part of an email address, if there is one.
 fn extract_domain(email: &str) -> Option<String> {
@@ -19,11 +25,22 @@ fn extract_domain(email: &str) -> Option<String> {
   if domain.is_empty() { None } else { Some(domain) }
 }
 
-fn matches_domain(domain: &str, pattern: &str) -> bool {
+fn matches_pattern(email: &str, pattern: &str) -> bool {
   let normalized = pattern.trim().to_ascii_lowercase();
   if normalized.is_empty() {
     return false;
   }
+
+  // A pattern carrying an `@` addresses one person, not a domain. Compared
+  // whole so that `a@b@example.com` only ever matches itself.
+  if normalized.contains('@') {
+    return email.trim().to_ascii_lowercase() == normalized;
+  }
+
+  let Some(domain) = extract_domain(email) else {
+    return false;
+  };
+  let domain = domain.as_str();
 
   if let Some(base) = normalized.strip_prefix("*.") {
     if base.is_empty() {
@@ -44,11 +61,7 @@ pub(crate) fn email_domain_allowed(email: &str, allowed_domains: &[String]) -> b
     return true;
   }
 
-  let Some(domain) = extract_domain(email) else {
-    return false;
-  };
-
-  allowed_domains.iter().any(|pattern| matches_domain(&domain, pattern))
+  allowed_domains.iter().any(|pattern| matches_pattern(email, pattern))
 }
 
 #[cfg(test)]
@@ -104,6 +117,42 @@ mod tests {
     assert!(email_domain_allowed("user+tag@example.com", &allowed));
     // Only the final @ delimits the domain.
     assert!(email_domain_allowed("weird@local@example.com", &allowed));
+  }
+
+  #[test]
+  fn an_entry_with_an_at_matches_that_address_alone() {
+    let allowed = list(&["someone@example.com"]);
+    assert!(email_domain_allowed("someone@example.com", &allowed));
+    assert!(email_domain_allowed("  SomeOne@Example.COM  ", &allowed));
+    // The domain is not opened up by an address entry.
+    assert!(!email_domain_allowed("other@example.com", &allowed));
+    // Nor is a longer local part that merely ends in the same text.
+    assert!(!email_domain_allowed("notsomeone@example.com", &allowed));
+  }
+
+  #[test]
+  fn an_address_entry_and_a_domain_entry_coexist() {
+    let allowed = list(&["someone@gmail.com", "example.com"]);
+    assert!(email_domain_allowed("someone@gmail.com", &allowed));
+    assert!(email_domain_allowed("anyone@example.com", &allowed));
+    assert!(!email_domain_allowed("anyone@gmail.com", &allowed));
+  }
+
+  #[test]
+  fn an_address_entry_compares_the_whole_address() {
+    // Only the final @ delimits the domain, but an address pattern is matched
+    // whole, so this pattern is not read as local part `weird` at `local`.
+    let allowed = list(&["weird@local@example.com"]);
+    assert!(email_domain_allowed("weird@local@example.com", &allowed));
+    assert!(!email_domain_allowed("local@example.com", &allowed));
+  }
+
+  #[test]
+  fn a_list_that_can_never_match_denies_everything() {
+    // A non-empty list is an active list, so an entry matching nobody locks
+    // sign-up rather than falling back to permit-all.
+    let allowed = list(&["@", " "]);
+    assert!(!email_domain_allowed("someone@example.com", &allowed));
   }
 
   #[test]

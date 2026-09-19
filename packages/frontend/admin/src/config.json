@@ -37,7 +37,7 @@
     },
     "allowedEmailDomains": {
       "type": "Array",
-      "desc": "Restrict account creation to these email domains. An empty list (the default) disables the allowlist and permits any domain. Entries are case-insensitive and may use a leading `*.` wildcard: `example.com` matches only that exact domain, while `*.example.com` matches the apex domain and every subdomain beneath it (`a.example.com`, `a.b.example.com`). This gates OAuth sign-up, magic-link sign-up, admin-created accounts and bulk imports. Existing accounts are never locked out by this setting."
+      "desc": "Restrict account creation to these email domains or addresses. An empty list (the default) disables the allowlist and permits anyone. Entries are case-insensitive. A pattern containing `@` matches that one address; `example.com` matches only that exact domain, while `*.example.com` matches the apex domain and every subdomain beneath it (`a.example.com`, `a.b.example.com`). An entry may instead be an object `{ \"pattern\": ..., \"workspaces\": [...], \"role\": ... }`, which additionally makes a newly created account an immediate member of those workspaces as Collaborator (the default) or Admin. This gates OAuth sign-up, magic-link sign-up, admin-created accounts and bulk imports. Existing accounts are never locked out, and never retroactively granted, by this setting."
     },
     "requireEmailDomainVerification": {
       "type": "Boolean",
