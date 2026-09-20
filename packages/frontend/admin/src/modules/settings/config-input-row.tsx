@@ -11,6 +11,7 @@ import { cn } from '@affine/admin/utils';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { Textarea } from '../../components/ui/textarea';
+import { EmailAllowlistInput } from './email-allowlist';
 
 export type ConfigInputProps = {
   field: string;
@@ -21,7 +22,7 @@ export type ConfigInputProps = {
   onErrorChange?: (field: string, error?: string) => void;
 } & (
   | {
-      type: 'String' | 'Number' | 'Boolean' | 'JSON';
+      type: 'String' | 'Number' | 'Boolean' | 'JSON' | 'EmailAllowlist';
     }
   | {
       type: 'Enum';
@@ -126,6 +127,7 @@ const Inputs: Record<
       />
     );
   },
+  EmailAllowlist: EmailAllowlistInput,
   Enum: function EnumInput({ defaultValue, onChange, options }) {
     return (
       <Select
