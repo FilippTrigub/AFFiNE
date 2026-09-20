@@ -1,4 +1,5 @@
 import { Scrollable, uniReactRoot } from '@affine/component';
+import { BrandLogoIcon } from '@affine/component/brand-logo';
 import type { AffineEditorContainer } from '@affine/core/blocksuite/block-suite-editor';
 import { EditorOutlineViewer } from '@affine/core/blocksuite/outline-viewer';
 import { useActiveBlocksuiteEditor } from '@affine/core/components/hooks/use-block-suite-editor';
@@ -27,7 +28,6 @@ import { useI18n } from '@affine/i18n';
 import { DisposableGroup } from '@blocksuite/affine/global/disposable';
 import { RefNodeSlotsProvider } from '@blocksuite/affine/inlines/reference';
 import { type DocMode, DocModes } from '@blocksuite/affine/model';
-import { Logo1Icon } from '@blocksuite/icons/rc';
 import { FrameworkScope, useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -438,7 +438,7 @@ const SharePageFooter = () => {
       <span className={styles.linkText}>
         {t['com.affine.share-page.footer.built-with']()}
       </span>
-      <Logo1Icon fontSize={20} />
+      <BrandLogoIcon fontSize={20} />
     </a>
   );
 };

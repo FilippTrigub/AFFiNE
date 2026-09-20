@@ -1,4 +1,5 @@
 import { Scrollable } from '@affine/component';
+import { BrandLogoIcon } from '@affine/component/brand-logo';
 import { Avatar } from '@affine/component/ui/avatar';
 import { UserPlanButton } from '@affine/core/components/affine/auth/user-plan-button';
 import { useCatchEventCallback } from '@affine/core/components/hooks/use-catch-event-hook';
@@ -8,7 +9,6 @@ import type { SettingTab } from '@affine/core/modules/dialogs/constant';
 import { type WorkspaceMetadata } from '@affine/core/modules/workspace';
 import { useI18n } from '@affine/i18n';
 import { track } from '@affine/track';
-import { Logo1Icon } from '@blocksuite/icons/rc';
 import { useLiveData, useService } from '@toeverything/infra';
 import clsx from 'clsx';
 import {
@@ -91,7 +91,7 @@ export const SignInButton = () => {
       }, [globalDialogService])}
     >
       <div className="avatar not-sign">
-        <Logo1Icon />
+        <BrandLogoIcon />
       </div>
 
       <div className="content">
