@@ -1,0 +1,6 @@
+query adminWorkspaceOptions {
+  adminWorkspaceOptions {
+    id
+    name
+  }
+}

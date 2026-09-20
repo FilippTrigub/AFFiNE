@@ -251,6 +251,20 @@ export class WorkspaceModel extends BaseModel {
   // #endregion
 
   // #region admin
+  /**
+   * Id and name only, for pickers that need to name every workspace on the
+   * instance. Deliberately separate from `adminListWorkspaces`, which joins the
+   * admin stats table and every owner's contact details -- a dropdown has no use
+   * for either, and this one is reachable on self-hosted deployments.
+   */
+  async adminListWorkspaceOptions(limit: number) {
+    return await this.db.workspace.findMany({
+      select: { id: true, name: true },
+      orderBy: [{ name: 'asc' }, { id: 'asc' }],
+      take: limit,
+    });
+  }
+
   async adminListWorkspaces(options: {
     skip: number;
     first: number;

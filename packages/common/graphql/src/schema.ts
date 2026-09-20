@@ -235,6 +235,12 @@ export enum AdminWorkspaceMemberRole {
   Owner = 'Owner',
 }
 
+export interface AdminWorkspaceOption {
+  __typename?: 'AdminWorkspaceOption';
+  id: Scalars['String']['output'];
+  name: Maybe<Scalars['String']['output']>;
+}
+
 export interface AdminWorkspaceSharedLink {
   __typename?: 'AdminWorkspaceSharedLink';
   docId: Scalars['String']['output'];
@@ -2585,6 +2591,8 @@ export interface Query {
   adminMailDeliveries: AdminMailDeliveryAnalytics;
   /** Get workspace detail for admin */
   adminWorkspace: Maybe<AdminWorkspace>;
+  /** List every workspace as a pickable id and name, for admin */
+  adminWorkspaceOptions: Array<AdminWorkspaceOption>;
   /** List workspaces for admin */
   adminWorkspaces: Array<AdminWorkspace>;
   /** Workspaces count for admin */
@@ -2642,6 +2650,10 @@ export interface QueryAdminMailDeliveriesArgs {
 
 export interface QueryAdminWorkspaceArgs {
   id: Scalars['String']['input'];
+}
+
+export interface QueryAdminWorkspaceOptionsArgs {
+  first?: Scalars['Int']['input'];
 }
 
 export interface QueryAdminWorkspacesArgs {
@@ -4057,6 +4069,19 @@ export type AdminUpdateWorkspaceMutation = {
       avatarUrl: string | null;
     } | null;
   } | null;
+};
+
+export type AdminWorkspaceOptionsQueryVariables = Exact<{
+  [key: string]: never;
+}>;
+
+export type AdminWorkspaceOptionsQuery = {
+  __typename?: 'Query';
+  adminWorkspaceOptions: Array<{
+    __typename?: 'AdminWorkspaceOption';
+    id: string;
+    name: string | null;
+  }>;
 };
 
 export type AdminWorkspaceQueryVariables = Exact<{
@@ -7744,6 +7769,11 @@ export type Queries =
       name: 'adminServerConfigQuery';
       variables: AdminServerConfigQueryVariables;
       response: AdminServerConfigQuery;
+    }
+  | {
+      name: 'adminWorkspaceOptionsQuery';
+      variables: AdminWorkspaceOptionsQueryVariables;
+      response: AdminWorkspaceOptionsQuery;
     }
   | {
       name: 'adminWorkspaceQuery';

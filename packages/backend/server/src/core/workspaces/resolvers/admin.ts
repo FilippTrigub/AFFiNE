@@ -30,6 +30,9 @@ import { Admin } from '../../common';
 import { WorkspaceUserType } from '../../user';
 import { TimeWindow } from './analytics-types';
 
+/** A self-hosted instance has tens of workspaces, not thousands. */
+const MAX_WORKSPACE_OPTIONS = 500;
+
 enum AdminWorkspaceSort {
   CreatedAt = 'CreatedAt',
   SnapshotSize = 'SnapshotSize',
@@ -130,6 +133,21 @@ class ListWorkspaceInput {
 
   @Field({ nullable: true })
   enableDocEmbedding?: boolean;
+}
+
+/**
+ * The minimum an admin needs to choose a workspace by name. Unlike
+ * `AdminWorkspace` this is not gated to cloud deployments: self-hosted admins
+ * still have to name workspaces, for example when granting signup allowlist
+ * access.
+ */
+@ObjectType()
+class AdminWorkspaceOption {
+  @Field()
+  id!: string;
+
+  @Field(() => String, { nullable: true })
+  name?: string | null;
 }
 
 @ObjectType()
@@ -444,6 +462,18 @@ export class AdminWorkspaceResolver {
     if (env.selfhosted) {
       throw new NotFoundException();
     }
+  }
+
+  @Query(() => [AdminWorkspaceOption], {
+    description: 'List every workspace as a pickable id and name, for admin',
+  })
+  async adminWorkspaceOptions(
+    @Args('first', { type: () => Int, defaultValue: MAX_WORKSPACE_OPTIONS })
+    first: number
+  ) {
+    return await this.models.workspace.adminListWorkspaceOptions(
+      Math.min(Math.max(first, 1), MAX_WORKSPACE_OPTIONS)
+    );
   }
 
   @Query(() => [AdminWorkspace], {

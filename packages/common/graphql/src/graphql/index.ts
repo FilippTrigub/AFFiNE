@@ -287,6 +287,17 @@ export const adminUpdateWorkspaceMutation = {
 }`,
 };
 
+export const adminWorkspaceOptionsQuery = {
+  id: 'adminWorkspaceOptionsQuery' as const,
+  op: 'adminWorkspaceOptions',
+  query: `query adminWorkspaceOptions {
+  adminWorkspaceOptions {
+    id
+    name
+  }
+}`,
+};
+
 export const adminWorkspaceQuery = {
   id: 'adminWorkspaceQuery' as const,
   op: 'adminWorkspace',

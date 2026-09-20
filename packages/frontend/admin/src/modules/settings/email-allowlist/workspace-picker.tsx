@@ -9,12 +9,11 @@ import {
 } from '@affine/admin/components/ui/popover';
 import { ScrollArea } from '@affine/admin/components/ui/scroll-area';
 import { useQuery } from '@affine/admin/use-query';
-import { adminWorkspacesQuery } from '@affine/graphql';
+import { adminWorkspaceOptionsQuery } from '@affine/graphql';
 import { X } from 'lucide-react';
 import { Suspense, useMemo, useState } from 'react';
 
-/** One page is enough: a self-hosted instance has tens of workspaces, not thousands. */
-const WORKSPACE_PAGE_SIZE = 200;
+import { QueryBoundary } from './query-boundary';
 
 type Workspace = { id: string; name?: string | null };
 
@@ -27,15 +26,12 @@ const workspaceLabel = (workspace: Workspace) =>
   workspace.name?.trim() || 'Untitled workspace';
 
 const WorkspaceOptions = ({ selected, onChange }: WorkspacePickerProps) => {
-  const { data } = useQuery({
-    query: adminWorkspacesQuery,
-    variables: { filter: { first: WORKSPACE_PAGE_SIZE, skip: 0 } },
-  });
+  const { data } = useQuery({ query: adminWorkspaceOptionsQuery });
   const [keyword, setKeyword] = useState('');
 
   const workspaces = useMemo(() => {
     const term = keyword.trim().toLowerCase();
-    const all: Workspace[] = data.adminWorkspaces ?? [];
+    const all: Workspace[] = data.adminWorkspaceOptions ?? [];
     if (!term) {
       return all;
     }
@@ -44,7 +40,7 @@ const WorkspaceOptions = ({ selected, onChange }: WorkspacePickerProps) => {
         workspaceLabel(workspace).toLowerCase().includes(term) ||
         workspace.id.toLowerCase().includes(term)
     );
-  }, [data.adminWorkspaces, keyword]);
+  }, [data.adminWorkspaceOptions, keyword]);
 
   const toggle = (id: string) => {
     onChange(
@@ -97,6 +93,43 @@ const WorkspaceOptions = ({ selected, onChange }: WorkspacePickerProps) => {
 };
 
 /**
+ * The escape hatch. Keeps the picker usable when the workspace list cannot be
+ * loaded, and lets an admin grant into a workspace by id before it appears.
+ */
+const AddWorkspaceById = ({ selected, onChange }: WorkspacePickerProps) => {
+  const [value, setValue] = useState('');
+  const id = value.trim();
+  const add = () => {
+    if (!id || selected.includes(id)) {
+      setValue('');
+      return;
+    }
+    onChange([...selected, id]);
+    setValue('');
+  };
+
+  return (
+    <div className="flex gap-2">
+      <Input
+        type="text"
+        placeholder="Add by workspace id"
+        value={value}
+        onChange={event => setValue(event.target.value)}
+        onKeyDown={event => {
+          if (event.key === 'Enter') {
+            event.preventDefault();
+            add();
+          }
+        }}
+      />
+      <Button type="button" variant="secondary" disabled={!id} onClick={add}>
+        Add
+      </Button>
+    </div>
+  );
+};
+
+/**
  * Multi-select over the instance's workspaces. Ids that no longer resolve to a
  * workspace stay selected and visible, so editing a rule never silently drops a
  * grant that only looks stale.
@@ -118,15 +151,32 @@ export const WorkspacePicker = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-80 p-3">
-          <Suspense
-            fallback={
-              <div className="py-2 text-sm text-muted-foreground">
-                Loading workspaces...
+          <QueryBoundary
+            fallback={error => (
+              <div className="flex flex-col gap-1 py-2">
+                <span className="text-sm text-destructive">
+                  Could not load the workspace list.
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {error.message} You can still grant access by pasting a
+                  workspace id below.
+                </span>
               </div>
-            }
+            )}
           >
-            <WorkspaceOptions selected={selected} onChange={onChange} />
-          </Suspense>
+            <Suspense
+              fallback={
+                <div className="py-2 text-sm text-muted-foreground">
+                  Loading workspaces...
+                </div>
+              }
+            >
+              <WorkspaceOptions selected={selected} onChange={onChange} />
+            </Suspense>
+          </QueryBoundary>
+          <div className="mt-3 border-t pt-3">
+            <AddWorkspaceById selected={selected} onChange={onChange} />
+          </div>
         </PopoverContent>
       </Popover>
 
