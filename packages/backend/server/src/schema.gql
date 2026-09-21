@@ -737,6 +737,12 @@ input CreateUserInput {
   password: String
 }
 
+input CreateWorkspaceAgentInput {
+  email: String!
+  name: String
+  workspaceId: String!
+}
+
 input CreateWorkspaceByokLocalLeaseInput {
   providers: [CreateWorkspaceByokLocalLeaseProviderInput!]!
   workspaceId: String!
@@ -1602,6 +1608,11 @@ type Mutation {
 
   """Create a new workspace"""
   createWorkspace(init: Upload): WorkspaceType!
+
+  """
+  Create a workspace agent account: a non-human identity that serves one workspace over MCP and can never sign in.
+  """
+  createWorkspaceAgent(input: CreateWorkspaceAgentInput!): UserType!
   createWorkspaceByokLocalLease(input: CreateWorkspaceByokLocalLeaseInput!): CreateWorkspaceByokLocalLeaseResultType!
   createWorkspaceByokProfile(input: CreateWorkspaceByokProfileInput!): WorkspaceByokProfileType!
   deactivateLicense(workspaceId: String!): Boolean!

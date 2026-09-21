@@ -52,6 +52,11 @@ export interface CurrentUser extends Pick<
 > {
   hasPassword: boolean | null;
   emailVerified: boolean;
+  /**
+   * Set only on a workspace agent account. Optional so that the many places
+   * constructing a user literal stay valid; absent and null both mean human.
+   */
+  agentOfWorkspaceId?: string | null;
 }
 
 // interface and variable don't conflict

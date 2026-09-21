@@ -56,6 +56,18 @@ export class SignupGrantsService {
       return;
     }
 
+    // An agent account belongs to exactly one workspace, which its creator has
+    // already joined it to. The allowlist must never widen that. Checked here
+    // rather than in the handlers because `user.signedUp` carries only an id
+    // and an email.
+    const user = await this.models.user.get(userId);
+    if (user?.agentOfWorkspaceId) {
+      this.logger.warn(
+        `Signup grants skipped for agent account [${userId}]: an agent is bound to one workspace`
+      );
+      return;
+    }
+
     for (const { workspaceId, role } of grants) {
       try {
         // A workspace id that no longer exists would otherwise surface as a

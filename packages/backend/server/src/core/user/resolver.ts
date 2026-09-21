@@ -25,6 +25,7 @@ import {
   readBufferWithLimit,
   SignUpForbidden,
   sniffMime,
+  SpaceNotFound,
   Throttle,
   UserNotFound,
 } from '../../base';
@@ -33,6 +34,8 @@ import {
   Models,
   UserFeatureName,
   UserSettingsSchema,
+  WorkspaceMemberStatus,
+  WorkspaceRole,
 } from '../../models';
 import { processImage } from '../../native';
 import { isEmailDomainAllowed } from '../auth/email-allowlist';
@@ -237,6 +240,18 @@ class ListUserInput {
 }
 
 @InputType()
+class CreateWorkspaceAgentInput {
+  @Field(() => String)
+  email!: string;
+
+  @Field(() => String)
+  workspaceId!: string;
+
+  @Field(() => String, { nullable: true })
+  name?: string;
+}
+
+@InputType()
 class CreateUserInput {
   @Field(() => String)
   email!: string;
@@ -348,6 +363,41 @@ export class UserManagementResolver {
     }
 
     return sessionUser(user);
+  }
+
+  @Mutation(() => UserType, {
+    description:
+      'Create a workspace agent account: a non-human identity that serves one workspace over MCP and can never sign in.',
+  })
+  async createWorkspaceAgent(
+    @Args({ name: 'input', type: () => CreateWorkspaceAgentInput })
+    input: CreateWorkspaceAgentInput
+  ) {
+    const workspace = await this.models.workspace.get(input.workspaceId);
+    if (!workspace) {
+      throw new SpaceNotFound({ spaceId: input.workspaceId });
+    }
+
+    // The signup allowlist governs who may *sign up*. An agent never signs in
+    // at all, and its address is a label rather than a mailbox, so the
+    // allowlist is deliberately not applied here.
+    const { id } = await this.models.user.create({
+      email: input.email,
+      name: input.name,
+      registered: true,
+      agentOfWorkspace: { connect: { id: input.workspaceId } },
+    });
+
+    // Collaborator, never Admin or Owner: a workspace Owner inherits doc Owner
+    // unconditionally and could not be excluded from any doc.
+    await this.models.workspaceUser.set(
+      input.workspaceId,
+      id,
+      WorkspaceRole.Collaborator,
+      { status: WorkspaceMemberStatus.Accepted }
+    );
+
+    return this.getUser(id);
   }
 
   @Mutation(() => UserType, {

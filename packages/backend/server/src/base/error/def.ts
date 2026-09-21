@@ -624,6 +624,11 @@ export const USER_FRIENDLY_ERRORS = {
     type: 'invalid_input',
     message: 'Doc default role can not be owner.',
   },
+  agent_account_can_not_sign_in: {
+    type: 'action_forbidden',
+    message:
+      'A workspace agent account can not sign in. It authenticates only through its MCP credential.',
+  },
   invalid_workspace_default_doc_role: {
     type: 'invalid_input',
     message:

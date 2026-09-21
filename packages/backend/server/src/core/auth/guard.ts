@@ -11,6 +11,7 @@ import semver from 'semver';
 import { Socket } from 'socket.io';
 
 import {
+  AgentAccountCanNotSignIn,
   AuthenticationRequired,
   checkCanaryDateClientVersion,
   Config,
@@ -84,7 +85,18 @@ export class AuthGuard implements CanActivate, OnModuleInit {
     isPublic = false
   ): Promise<Session | null> {
     const result = await this.resolveRequestSession(req, res, isPublic);
-    return result?.session ?? null;
+    const session = result?.session ?? null;
+
+    // A workspace agent account authenticates only through its MCP credential,
+    // which the MCP controller verifies itself on a @Public() route. Refusing
+    // it here covers every other surface at once -- GraphQL, REST and the sync
+    // gateway all resolve their identity through this method -- rather than
+    // patching each of the Rust sign-in paths separately.
+    if (session?.user.agentOfWorkspaceId) {
+      throw new AgentAccountCanNotSignIn();
+    }
+
+    return session;
   }
 
   private async resolveRequestSession(

@@ -40,14 +40,31 @@ import type { NativeLoginResult, SessionIssueInput } from './session-issuer';
 export function sessionUser(
   user: Pick<
     User,
-    'id' | 'email' | 'avatarUrl' | 'name' | 'emailVerifiedAt' | 'disabled'
+    | 'id'
+    | 'email'
+    | 'avatarUrl'
+    | 'name'
+    | 'emailVerifiedAt'
+    | 'disabled'
+    | 'agentOfWorkspaceId'
   > & { password?: string | null }
 ): CurrentUser {
   // use pick to avoid unexpected fields
-  return assign(pick(user, 'id', 'email', 'avatarUrl', 'name', 'disabled'), {
-    hasPassword: user.password !== null,
-    emailVerified: user.emailVerifiedAt !== null,
-  });
+  return assign(
+    pick(
+      user,
+      'id',
+      'email',
+      'avatarUrl',
+      'name',
+      'disabled',
+      'agentOfWorkspaceId'
+    ),
+    {
+      hasPassword: user.password !== null,
+      emailVerified: user.emailVerifiedAt !== null,
+    }
+  );
 }
 
 @Injectable()

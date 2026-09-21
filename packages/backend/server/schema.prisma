@@ -12,19 +12,23 @@ datasource db {
 }
 
 model User {
-  id              String    @id @default(uuid()) @db.VarChar
-  name            String    @db.VarChar
-  email           String    @unique @db.VarChar
-  emailVerifiedAt DateTime? @map("email_verified") @db.Timestamptz(3)
-  avatarUrl       String?   @map("avatar_url") @db.VarChar
-  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  id                 String     @id @default(uuid()) @db.VarChar
+  name               String     @db.VarChar
+  email              String     @unique @db.VarChar
+  emailVerifiedAt    DateTime?  @map("email_verified") @db.Timestamptz(3)
+  avatarUrl          String?    @map("avatar_url") @db.VarChar
+  createdAt          DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
   /// Not available if user signed up through OAuth providers
-  password        String?   @db.VarChar
+  password           String?    @db.VarChar
   /// Indicate whether the user finished the signup progress.
   /// for example, the value will be false if user never registered and invited into a workspace by others.
-  registered      Boolean   @default(true)
-  disabled        Boolean   @default(false)
-  authEpoch       Int       @default(0) @map("auth_epoch")
+  registered         Boolean    @default(true)
+  disabled           Boolean    @default(false)
+  authEpoch          Int        @default(0) @map("auth_epoch")
+  /// Set on a workspace agent account: a non-human identity that serves exactly
+  /// one workspace over MCP and can never hold an interactive session.
+  agentOfWorkspaceId String?    @map("agent_of_workspace_id") @db.VarChar
+  agentOfWorkspace   Workspace? @relation("WorkspaceAgentAccounts", fields: [agentOfWorkspaceId], references: [id], onDelete: Cascade)
 
   features                    UserFeature[]
   userStripeCustomer          UserStripeCustomer?
@@ -213,6 +217,7 @@ model Workspace {
   docGrants                  DocGrant[]
   mcpCredentials             McpCredential[]
   artifacts                  WorkspaceArtifact[]
+  agentAccounts              User[]                        @relation("WorkspaceAgentAccounts")
 
   @@index([lastCheckEmbeddings])
   @@index([createdAt])

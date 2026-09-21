@@ -857,6 +857,12 @@ export interface CreateUserInput {
   password?: InputMaybe<Scalars['String']['input']>;
 }
 
+export interface CreateWorkspaceAgentInput {
+  email: Scalars['String']['input'];
+  name?: InputMaybe<Scalars['String']['input']>;
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface CreateWorkspaceByokLocalLeaseInput {
   providers: Array<CreateWorkspaceByokLocalLeaseProviderInput>;
   workspaceId: Scalars['String']['input'];
@@ -1793,6 +1799,8 @@ export interface Mutation {
   createUser: UserType;
   /** Create a new workspace */
   createWorkspace: WorkspaceType;
+  /** Create a workspace agent account: a non-human identity that serves one workspace over MCP and can never sign in. */
+  createWorkspaceAgent: UserType;
   createWorkspaceByokLocalLease: CreateWorkspaceByokLocalLeaseResultType;
   createWorkspaceByokProfile: WorkspaceByokProfileType;
   deactivateLicense: Scalars['Boolean']['output'];
@@ -2018,6 +2026,10 @@ export interface MutationCreateUserArgs {
 
 export interface MutationCreateWorkspaceArgs {
   init?: InputMaybe<Scalars['Upload']['input']>;
+}
+
+export interface MutationCreateWorkspaceAgentArgs {
+  input: CreateWorkspaceAgentInput;
 }
 
 export interface MutationCreateWorkspaceByokLocalLeaseArgs {
