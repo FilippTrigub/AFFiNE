@@ -1,7 +1,7 @@
 import { Toaster } from '@affine/admin/components/ui/sonner';
 import { lazy, ROUTES } from '@affine/routes';
 import { withSentryReactRouterV7Routing } from '@sentry/react';
-import { useEffect } from 'react';
+import { type PropsWithChildren, useEffect } from 'react';
 import {
   BrowserRouter,
   Navigate,
@@ -13,6 +13,7 @@ import {
 import { toast } from 'sonner';
 import { SWRConfig } from 'swr';
 
+import { ErrorBoundary, RouteErrorFallback } from './components/error-boundary';
 import { ThemeProvider } from './components/theme-provider';
 import { TooltipProvider } from './components/ui/tooltip';
 import { isAdmin, useCurrentUser, useServerConfig } from './modules/common';
@@ -44,6 +45,25 @@ const Routes = window.SENTRY_RELEASE
   ? withSentryReactRouterV7Routing(ReactRouterRoutes)
   : ReactRouterRoutes;
 
+/**
+ * Resets on navigation, so a page that failed never traps the whole session --
+ * clicking another nav item is enough to recover.
+ */
+function RouteBoundary({ children }: PropsWithChildren) {
+  const location = useLocation();
+
+  return (
+    <ErrorBoundary
+      resetKey={location.pathname}
+      fallback={(error, reset) => (
+        <RouteErrorFallback error={error} reset={reset} />
+      )}
+    >
+      {children}
+    </ErrorBoundary>
+  );
+}
+
 function AuthenticatedRoutes() {
   const user = useCurrentUser();
 
@@ -59,7 +79,9 @@ function AuthenticatedRoutes() {
 
   return (
     <Layout>
-      <Outlet />
+      <RouteBoundary>
+        <Outlet />
+      </RouteBoundary>
     </Layout>
   );
 }
@@ -98,46 +120,51 @@ export const App = () => {
           }}
         >
           <BrowserRouter basename={environment.subPath}>
-            <Routes>
-              <Route path={ROUTES.admin.index} element={<RootRoutes />}>
-                <Route path={ROUTES.admin.auth} element={<Auth />} />
-                <Route path={ROUTES.admin.setup} element={<Setup />} />
-                <Route element={<AuthenticatedRoutes />}>
-                  <Route
-                    path={ROUTES.admin.dashboard}
-                    element={
-                      environment.isSelfHosted ? (
-                        <Navigate to={ROUTES.admin.accounts} replace />
-                      ) : (
-                        <Dashboard />
-                      )
-                    }
-                  />
-                  <Route path={ROUTES.admin.accounts} element={<Accounts />} />
-                  <Route
-                    path={ROUTES.admin.workspaces}
-                    element={
-                      environment.isSelfHosted ? (
-                        <Navigate to={ROUTES.admin.accounts} replace />
-                      ) : (
-                        <Workspaces />
-                      )
-                    }
-                  />
-                  <Route
-                    path={ROUTES.admin.ai}
-                    element={
-                      <Navigate to={ROUTES.admin.settings.index} replace />
-                    }
-                  />
-                  <Route path={ROUTES.admin.about} element={<About />} />
-                  <Route
-                    path={ROUTES.admin.settings.index}
-                    element={<Settings />}
-                  />
+            <RouteBoundary>
+              <Routes>
+                <Route path={ROUTES.admin.index} element={<RootRoutes />}>
+                  <Route path={ROUTES.admin.auth} element={<Auth />} />
+                  <Route path={ROUTES.admin.setup} element={<Setup />} />
+                  <Route element={<AuthenticatedRoutes />}>
+                    <Route
+                      path={ROUTES.admin.dashboard}
+                      element={
+                        environment.isSelfHosted ? (
+                          <Navigate to={ROUTES.admin.accounts} replace />
+                        ) : (
+                          <Dashboard />
+                        )
+                      }
+                    />
+                    <Route
+                      path={ROUTES.admin.accounts}
+                      element={<Accounts />}
+                    />
+                    <Route
+                      path={ROUTES.admin.workspaces}
+                      element={
+                        environment.isSelfHosted ? (
+                          <Navigate to={ROUTES.admin.accounts} replace />
+                        ) : (
+                          <Workspaces />
+                        )
+                      }
+                    />
+                    <Route
+                      path={ROUTES.admin.ai}
+                      element={
+                        <Navigate to={ROUTES.admin.settings.index} replace />
+                      }
+                    />
+                    <Route path={ROUTES.admin.about} element={<About />} />
+                    <Route
+                      path={ROUTES.admin.settings.index}
+                      element={<Settings />}
+                    />
+                  </Route>
                 </Route>
-              </Route>
-            </Routes>
+              </Routes>
+            </RouteBoundary>
           </BrowserRouter>
         </SWRConfig>
         <Toaster />

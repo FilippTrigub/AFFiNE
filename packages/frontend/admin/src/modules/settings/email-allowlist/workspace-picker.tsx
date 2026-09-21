@@ -13,7 +13,7 @@ import { adminWorkspaceOptionsQuery } from '@affine/graphql';
 import { X } from 'lucide-react';
 import { Suspense, useMemo, useState } from 'react';
 
-import { QueryBoundary } from './query-boundary';
+import { ErrorBoundary } from '../../../components/error-boundary';
 
 type Workspace = { id: string; name?: string | null };
 
@@ -151,7 +151,7 @@ export const WorkspacePicker = ({
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-80 p-3">
-          <QueryBoundary
+          <ErrorBoundary
             fallback={error => (
               <div className="flex flex-col gap-1 py-2">
                 <span className="text-sm text-destructive">
@@ -173,7 +173,7 @@ export const WorkspacePicker = ({
             >
               <WorkspaceOptions selected={selected} onChange={onChange} />
             </Suspense>
-          </QueryBoundary>
+          </ErrorBoundary>
           <div className="mt-3 border-t pt-3">
             <AddWorkspaceById selected={selected} onChange={onChange} />
           </div>
