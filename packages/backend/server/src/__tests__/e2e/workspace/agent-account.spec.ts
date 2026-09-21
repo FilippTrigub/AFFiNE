@@ -22,7 +22,7 @@ async function gql(query: string) {
 /**
  * `Mockers.Workspace` writes rows directly and bypasses `WorkspaceModel.create`,
  * so it never provisions an agent. Provision explicitly rather than patching the
- * mock, which would shift member counts in unrelated suites.
+ * mock, which would reach into unrelated suites.
  */
 async function workspaceWithAgent(ownerId: string) {
   const workspace = await app.create(Mockers.Workspace, {
@@ -44,11 +44,17 @@ e2e('creating a workspace provisions exactly one agent', async t => {
   t.is(agents[0].email, `agent.${workspace.id}@agents.local`);
   t.is(agents[0].password, null);
 
-  const membership = await db.workspaceMember.findFirstOrThrow({
+  // Deliberately not a member: an active membership would consume a paid seat
+  // and inflate every member count and list.
+  const membership = await db.workspaceMember.findFirst({
     where: { workspaceId: workspace.id, userId: agents[0].id },
   });
-  t.is(membership.role, 'member');
-  t.is(membership.state, 'active');
+  t.is(membership, null);
+
+  const memberCount = await db.workspaceMember.count({
+    where: { workspaceId: workspace.id, state: 'active' },
+  });
+  t.is(memberCount, 1);
 });
 
 e2e('provisioning is idempotent', async t => {

@@ -5,8 +5,12 @@ import { PrismaClient } from '@prisma/client';
  * `WorkspaceModel.create`; this gives one to every workspace that predates that
  * change.
  *
- * Both statements are `INSERT ... SELECT ... ON CONFLICT DO NOTHING`, so the
- * migration is idempotent and a partial failure can simply be re-run.
+ * The agent is deliberately not a workspace member -- membership would consume
+ * a paid seat and inflate member counts -- so only the user row is created; it
+ * reaches documents through explicit `doc_grants`.
+ *
+ * `INSERT ... SELECT` guarded by `NOT EXISTS`, so the migration is idempotent
+ * and a partial failure can simply be re-run.
  */
 export class BackfillWorkspaceAgents1789000000000 {
   static async up(db: PrismaClient) {
@@ -28,25 +32,6 @@ export class BackfillWorkspaceAgents1789000000000 {
           SELECT 1 FROM users u WHERE u.agent_of_workspace_id = w.id
         )
         ON CONFLICT (email) DO NOTHING
-      `;
-
-      // Collaborator ('member'), never owner or admin: those inherit doc Owner
-      // unconditionally and could not be excluded from any document.
-      await tx.$executeRaw`
-        INSERT INTO workspace_members (workspace_id, user_id, role, state, source, created_at, updated_at)
-        SELECT u.agent_of_workspace_id,
-               u.id,
-               'member',
-               'active',
-               'email',
-               clock_timestamp(),
-               clock_timestamp()
-        FROM users u
-        WHERE u.agent_of_workspace_id IS NOT NULL
-          AND NOT EXISTS (
-            SELECT 1 FROM workspace_members m
-            WHERE m.workspace_id = u.agent_of_workspace_id AND m.user_id = u.id
-          )
       `;
     });
   }

@@ -1,15 +1,10 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
-import {
-  Prisma,
-  type Workspace as WorkspaceRecord,
-  WorkspaceMemberStatus,
-} from '@prisma/client';
+import { Prisma, type Workspace as WorkspaceRecord } from '@prisma/client';
 
 import { EventBus } from '../base';
 import { BackendRuntimeProvider } from '../core/backend-runtime/provider';
 import { BaseModel } from './base';
-import { WorkspaceRole } from './common';
 
 /**
  * The address of a workspace's agent account. `.local` is reserved (RFC 6762)
@@ -132,6 +127,13 @@ export class WorkspaceModel extends BaseModel {
    * fire-and-forget -- inline keeps it inside this method's transaction, the
    * same way the access policy and the owner membership are.
    *
+   * Deliberately **not** a workspace member. An active membership would make
+   * the agent consume a paid seat (nine `count(*) FROM workspace_members`
+   * sites in the Rust quota code) and show up in member counts and lists. It
+   * reaches documents through explicit `doc_grants` rows instead, which the
+   * permission engine honours for a non-member and caps at Editor -- exactly
+   * the ceiling an agent should have.
+   *
    * Idempotent, so the backfill and a re-run are both safe. Deliberately does
    * not go through `UserModel.create`, which pre-checks the address and would
    * throw `EmailAlreadyUsed` on a second call.
@@ -148,15 +150,6 @@ export class WorkspaceModel extends BaseModel {
         agentOfWorkspaceId: workspaceId,
       },
     });
-
-    // Collaborator, never Admin or Owner: those inherit doc Owner
-    // unconditionally and could not be excluded from any doc.
-    await this.models.workspaceUser.set(
-      workspaceId,
-      agent.id,
-      WorkspaceRole.Collaborator,
-      { status: WorkspaceMemberStatus.Accepted }
-    );
 
     return agent;
   }

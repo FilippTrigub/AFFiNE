@@ -110,7 +110,18 @@ export class WorkspaceMcpProvider {
     workspaceId: string,
     accessMode: McpAccessMode = McpAccessMode.READ_ONLY
   ): Promise<WorkspaceMcpServer> {
-    await this.ac.user(userId).workspace(workspaceId).assert('Workspace.Read');
+    const agentGrants = await this.agentGrants(userId, workspaceId);
+
+    // An agent is not a workspace member, so it cannot satisfy a workspace-level
+    // action. Its right to be here is the credential the controller already
+    // verified, which is bound to this workspace; what it may reach is decided
+    // per document below.
+    if (!agentGrants) {
+      await this.ac
+        .user(userId)
+        .workspace(workspaceId)
+        .assert('Workspace.Read');
+    }
 
     /**
      * For a workspace agent, its explicit `doc_grants` rows are the exhaustive
@@ -126,7 +137,6 @@ export class WorkspaceMcpProvider {
      *
      * `null` for a human: their own permissions govern, exactly as before.
      */
-    const agentGrants = await this.agentGrants(userId, workspaceId);
     const grantedRole = (docId: string) => agentGrants?.get(docId) ?? null;
     const agentMayRead = (docId: string) =>
       !agentGrants || agentGrants.has(docId);
@@ -267,10 +277,12 @@ export class WorkspaceMcpProvider {
         },
         execute: async ({ title, content }, options) => {
           try {
-            await this.ac
-              .user(userId)
-              .workspace(workspaceId)
-              .assert('Workspace.CreateDoc');
+            if (!agentGrants) {
+              await this.ac
+                .user(userId)
+                .workspace(workspaceId)
+                .assert('Workspace.CreateDoc');
+            }
             const abortedBeforeWrite = abortIfNeeded(options.signal);
             if (abortedBeforeWrite) return abortedBeforeWrite;
 
