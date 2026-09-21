@@ -1,0 +1,5 @@
+mutation updateWorkspaceDefaultDocRole(
+  $input: UpdateWorkspaceDefaultDocRoleInput!
+) {
+  updateWorkspaceDefaultDocRole(input: $input)
+}

@@ -624,6 +624,11 @@ export const USER_FRIENDLY_ERRORS = {
     type: 'invalid_input',
     message: 'Doc default role can not be owner.',
   },
+  invalid_workspace_default_doc_role: {
+    type: 'invalid_input',
+    message:
+      'Workspace default doc role must be one of None, Reader, Commenter, Editor or Manager.',
+  },
   can_not_batch_grant_doc_owner_permissions: {
     type: 'invalid_input',
     message: 'Can not batch grant doc owner permissions.',

@@ -1,6 +1,7 @@
 import {
   Args,
   Field,
+  InputType,
   Mutation,
   ObjectType,
   Parent,
@@ -13,11 +14,14 @@ import GraphQLUpload from 'graphql-upload/GraphQLUpload.mjs';
 import type { FileUpload } from '../../../base';
 import {
   AFFiNELogger,
+  EventBus,
+  InvalidWorkspaceDefaultDocRole,
   registerObjectType,
   SpaceAccessDenied,
   SpaceNotFound,
 } from '../../../base';
-import { Models } from '../../../models';
+import { DocRole, Models } from '../../../models';
+import { docRoleToNew } from '../../../models/permission-write';
 import { CurrentUser } from '../../auth';
 import { Admin } from '../../common';
 import type { DotToUnderline } from '../../permission';
@@ -31,6 +35,23 @@ import {
 import { QuotaService, WorkspaceQuotaType } from '../../quota';
 import { WorkspaceService } from '../service';
 import { UpdateWorkspaceInput, WorkspaceType } from '../types';
+
+declare global {
+  interface Events {
+    'workspace.default_doc_role.changed': {
+      workspaceId: string;
+    };
+  }
+}
+
+@InputType()
+class UpdateWorkspaceDefaultDocRoleInput {
+  @Field()
+  workspaceId!: string;
+
+  @Field(() => DocRole)
+  role!: DocRole;
+}
 
 const WorkspacePermissions = registerObjectType<
   Record<DotToUnderline<WorkspaceAction>, boolean>
@@ -70,6 +91,7 @@ export class WorkspaceResolver {
     private readonly quota: QuotaService,
     private readonly models: Models,
     private readonly workspaceService: WorkspaceService,
+    private readonly event: EventBus,
     private readonly logger: AFFiNELogger
   ) {
     logger.setContext(WorkspaceResolver.name);
@@ -259,6 +281,43 @@ export class WorkspaceResolver {
       .workspace(id)
       .assert('Workspace.Settings.Update');
     return this.models.workspace.update(id, updates);
+  }
+
+  @Mutation(() => Boolean, {
+    description:
+      'Set the doc role every member gets on docs with no explicit grant. ' +
+      'Use None to make the workspace deny-by-default.',
+  })
+  async updateWorkspaceDefaultDocRole(
+    @CurrentUser() user: CurrentUser,
+    @Args({ name: 'input', type: () => UpdateWorkspaceDefaultDocRoleInput })
+    input: UpdateWorkspaceDefaultDocRoleInput
+  ) {
+    await this.ac
+      .user(user.id)
+      .workspace(input.workspaceId)
+      .assert('Workspace.Settings.Update');
+
+    // Owner is excluded for the same reason it is on the per-doc default: it
+    // would hand every member the one role that cannot be overridden.
+    // External is not a grantable role, only an evaluation outcome.
+    if (input.role === DocRole.Owner || input.role === DocRole.External) {
+      throw new InvalidWorkspaceDefaultDocRole();
+    }
+
+    await this.models.workspaceAccessPolicy.upsert(input.workspaceId, {
+      memberDefaultDocRole:
+        input.role === DocRole.None ? 'none' : docRoleToNew(input.role),
+    });
+
+    // A database trigger already bumped the sync permission generation, which
+    // is what stops a stale socket reading on. This event is what drops the
+    // subscription proactively rather than at its next doc load.
+    this.event.emit('workspace.default_doc_role.changed', {
+      workspaceId: input.workspaceId,
+    });
+
+    return true;
   }
 
   @Mutation(() => Boolean)

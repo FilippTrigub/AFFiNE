@@ -1889,6 +1889,8 @@ export interface Mutation {
   /** Update workspace */
   updateWorkspace: WorkspaceType;
   updateWorkspaceCalendars: WorkspaceCalendarObjectType;
+  /** Set the doc role every member gets on docs with no explicit grant. Use None to make the workspace deny-by-default. */
+  updateWorkspaceDefaultDocRole: Scalars['Boolean']['output'];
   /** Update ignored docs */
   updateWorkspaceEmbeddingIgnoredDocs: Scalars['Int']['output'];
   /** Upload user avatar */
@@ -2339,6 +2341,10 @@ export interface MutationUpdateWorkspaceArgs {
 
 export interface MutationUpdateWorkspaceCalendarsArgs {
   input: UpdateWorkspaceCalendarsInput;
+}
+
+export interface MutationUpdateWorkspaceDefaultDocRoleArgs {
+  input: UpdateWorkspaceDefaultDocRoleInput;
 }
 
 export interface MutationUpdateWorkspaceEmbeddingIgnoredDocsArgs {
@@ -3251,6 +3257,11 @@ export interface UpdateUserSettingsInput {
 
 export interface UpdateWorkspaceCalendarsInput {
   items: Array<WorkspaceCalendarItemInput>;
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface UpdateWorkspaceDefaultDocRoleInput {
+  role: DocRole;
   workspaceId: Scalars['String']['input'];
 }
 
@@ -7289,6 +7300,15 @@ export type UpdateUserSettingsMutation = {
   updateSettings: boolean;
 };
 
+export type UpdateWorkspaceDefaultDocRoleMutationVariables = Exact<{
+  input: UpdateWorkspaceDefaultDocRoleInput;
+}>;
+
+export type UpdateWorkspaceDefaultDocRoleMutation = {
+  __typename?: 'Mutation';
+  updateWorkspaceDefaultDocRole: boolean;
+};
+
 export type UploadAvatarMutationVariables = Exact<{
   avatar: Scalars['Upload']['input'];
 }>;
@@ -8561,6 +8581,11 @@ export type Mutations =
       name: 'updateUserSettingsMutation';
       variables: UpdateUserSettingsMutationVariables;
       response: UpdateUserSettingsMutation;
+    }
+  | {
+      name: 'updateWorkspaceDefaultDocRoleMutation';
+      variables: UpdateWorkspaceDefaultDocRoleMutationVariables;
+      response: UpdateWorkspaceDefaultDocRoleMutation;
     }
   | {
       name: 'uploadAvatarMutation';

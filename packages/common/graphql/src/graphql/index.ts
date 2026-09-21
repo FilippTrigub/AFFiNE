@@ -2698,6 +2698,14 @@ export const updateUserSettingsMutation = {
 }`,
 };
 
+export const updateWorkspaceDefaultDocRoleMutation = {
+  id: 'updateWorkspaceDefaultDocRoleMutation' as const,
+  op: 'updateWorkspaceDefaultDocRole',
+  query: `mutation updateWorkspaceDefaultDocRole($input: UpdateWorkspaceDefaultDocRoleInput!) {
+  updateWorkspaceDefaultDocRole(input: $input)
+}`,
+};
+
 export const uploadAvatarMutation = {
   id: 'uploadAvatarMutation' as const,
   op: 'uploadAvatar',

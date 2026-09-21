@@ -439,6 +439,14 @@ export class WorkspaceAccessPolicyModel extends BaseModel {
       public?: boolean;
       enableSharing?: boolean;
       enableUrlPreview?: boolean;
+      /**
+       * The doc role every member gets on a doc that carries no explicit grant
+       * and no per-doc default. `'none'` makes the workspace deny-by-default.
+       * Rust reads this column live on every permission evaluation
+       * (native/.../permission/store.rs), and a database trigger bumps the sync
+       * permission generation on write, so no cache needs clearing here.
+       */
+      memberDefaultDocRole?: DocGrantRole | 'none';
     }
   ) {
     return await this.db.workspaceAccessPolicy.upsert({
@@ -452,14 +460,25 @@ export class WorkspaceAccessPolicyModel extends BaseModel {
               : 'private',
         sharingEnabled: policy.enableSharing,
         urlPreviewEnabled: policy.enableUrlPreview,
+        memberDefaultDocRole: policy.memberDefaultDocRole,
       },
       create: {
         workspaceId,
         visibility: policy.public ? 'public' : 'private',
         sharingEnabled: policy.enableSharing ?? true,
         urlPreviewEnabled: policy.enableUrlPreview ?? false,
+        memberDefaultDocRole: policy.memberDefaultDocRole ?? 'manager',
       },
     });
+  }
+
+  async getMemberDefaultDocRole(workspaceId: string) {
+    const policy = await this.db.workspaceAccessPolicy.findUnique({
+      where: { workspaceId },
+      select: { memberDefaultDocRole: true },
+    });
+    // Matches the SQL fallback the permission engine uses.
+    return policy?.memberDefaultDocRole ?? 'manager';
   }
 }
 

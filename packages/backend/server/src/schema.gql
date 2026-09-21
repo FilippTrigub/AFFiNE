@@ -1721,6 +1721,11 @@ type Mutation {
   updateWorkspace(input: UpdateWorkspaceInput!): WorkspaceType!
   updateWorkspaceCalendars(input: UpdateWorkspaceCalendarsInput!): WorkspaceCalendarObjectType!
 
+  """
+  Set the doc role every member gets on docs with no explicit grant. Use None to make the workspace deny-by-default.
+  """
+  updateWorkspaceDefaultDocRole(input: UpdateWorkspaceDefaultDocRoleInput!): Boolean!
+
   """Update ignored docs"""
   updateWorkspaceEmbeddingIgnoredDocs(add: [String!], remove: [String!], workspaceId: String!): Int!
 
@@ -2547,6 +2552,11 @@ input UpdateUserSettingsInput {
 
 input UpdateWorkspaceCalendarsInput {
   items: [WorkspaceCalendarItemInput!]!
+  workspaceId: String!
+}
+
+input UpdateWorkspaceDefaultDocRoleInput {
+  role: DocRole!
   workspaceId: String!
 }
 

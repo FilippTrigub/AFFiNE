@@ -919,6 +919,7 @@ export class SpaceSyncGateway
   @OnEvent('doc.grants.changed')
   @OnEvent('doc.owner.changed')
   @OnEvent('doc.default_role.changed')
+  @OnEvent('workspace.default_doc_role.changed')
   @OnEvent('doc.public_state.changed')
   @OnEvent('workspace.members.updated')
   @OnEvent('workspace.members.roleChanged')
