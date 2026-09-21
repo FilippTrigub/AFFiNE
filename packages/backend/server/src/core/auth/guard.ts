@@ -93,6 +93,12 @@ export class AuthGuard implements CanActivate, OnModuleInit {
     // gateway all resolve their identity through this method -- rather than
     // patching each of the Rust sign-in paths separately.
     if (session?.user.agentOfWorkspaceId) {
+      // On a public route the session is merely ambient: throwing would mean a
+      // browser still holding an agent's cookie could never reach /sign-in to
+      // log in as somebody else. Drop the identity and carry on anonymously.
+      if (isPublic) {
+        return null;
+      }
       throw new AgentAccountCanNotSignIn();
     }
 
