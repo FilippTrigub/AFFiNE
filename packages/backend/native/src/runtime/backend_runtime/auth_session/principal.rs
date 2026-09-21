@@ -203,6 +203,7 @@ struct PrincipalRow {
   disabled: bool,
   has_password: bool,
   email_verified: bool,
+  agent_of_workspace_id: Option<String>,
   auth_created_at: Option<chrono::DateTime<Utc>>,
   idle_expires_at: Option<chrono::DateTime<Utc>>,
   absolute_expires_at: Option<chrono::DateTime<Utc>>,
@@ -229,6 +230,7 @@ impl PrincipalRow {
         disabled: self.disabled,
         has_password: self.has_password,
         email_verified: self.email_verified,
+        agent_of_workspace_id: self.agent_of_workspace_id,
       },
     }
   }
@@ -241,7 +243,7 @@ async fn load_principal(
 ) -> RuntimeResult<PrincipalRow> {
   let row = sqlx::query(
     r#"SELECT s.id,s.session_id,s.user_id,s.expires_at,s.sign_in_client_version,s.refresh_client_version,s.created_at,
-              u.email,u.avatar_url,u.name,u.disabled,(u.password IS NOT NULL) AS has_password,
+              u.email,u.avatar_url,u.name,u.disabled,u.agent_of_workspace_id,(u.password IS NOT NULL) AS has_password,
               (u.email_verified IS NOT NULL) AS email_verified,
               a.created_at AS auth_created_at,a.idle_expires_at,a.absolute_expires_at,a.revoked_at AS auth_revoked_at
        FROM user_sessions s JOIN users u ON u.id=s.user_id
@@ -267,6 +269,7 @@ async fn load_principal(
     disabled: row.get("disabled"),
     has_password: row.get("has_password"),
     email_verified: row.get("email_verified"),
+    agent_of_workspace_id: row.get("agent_of_workspace_id"),
     auth_created_at: row.get("auth_created_at"),
     idle_expires_at: row.get("idle_expires_at"),
     absolute_expires_at: row.get("absolute_expires_at"),

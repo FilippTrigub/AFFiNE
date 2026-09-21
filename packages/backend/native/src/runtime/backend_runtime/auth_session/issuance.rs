@@ -111,7 +111,7 @@ pub(super) async fn issue(
 
 pub(super) async fn load_current_user(tx: &mut Transaction<'_, Postgres>, user_id: &str) -> RuntimeResult<CurrentUser> {
   let row = sqlx::query(
-    r#"SELECT id,email,avatar_url,name,disabled,(password IS NOT NULL) AS has_password,
+    r#"SELECT id,email,avatar_url,name,disabled,agent_of_workspace_id,(password IS NOT NULL) AS has_password,
               (email_verified IS NOT NULL) AS email_verified
        FROM users WHERE id=$1"#,
   )
@@ -127,5 +127,6 @@ pub(super) async fn load_current_user(tx: &mut Transaction<'_, Postgres>, user_i
     disabled: row.get("disabled"),
     has_password: row.get("has_password"),
     email_verified: row.get("email_verified"),
+    agent_of_workspace_id: row.get("agent_of_workspace_id"),
   })
 }

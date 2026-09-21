@@ -277,6 +277,9 @@ pub(super) struct CurrentUser {
   pub(super) disabled: bool,
   pub(super) has_password: bool,
   pub(super) email_verified: bool,
+  /// Set on a workspace agent account. Carried on the session principal so the
+  /// Node auth guard can refuse an interactive session without a second query.
+  pub(super) agent_of_workspace_id: Option<String>,
 }
 
 #[derive(Serialize)]

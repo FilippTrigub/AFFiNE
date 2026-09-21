@@ -54,7 +54,7 @@ pub(super) async fn sign_out(pool: &PgPool, session_id: &str, user_id: Option<&s
 
 pub(super) async fn users(pool: &PgPool, session_id: &str) -> RuntimeResult<Vec<CurrentUser>> {
   let rows = sqlx::query(
-    r#"SELECT u.id,u.email,u.avatar_url,u.name,u.disabled,
+    r#"SELECT u.id,u.email,u.avatar_url,u.name,u.disabled,u.agent_of_workspace_id,
               (u.password IS NOT NULL) AS has_password,(u.email_verified IS NOT NULL) AS email_verified
        FROM user_sessions s JOIN users u ON u.id=s.user_id
        WHERE s.session_id=$1 AND (s.expires_at IS NULL OR s.expires_at>clock_timestamp())
@@ -75,6 +75,7 @@ pub(super) async fn users(pool: &PgPool, session_id: &str) -> RuntimeResult<Vec<
         disabled: row.get("disabled"),
         has_password: row.get("has_password"),
         email_verified: row.get("email_verified"),
+        agent_of_workspace_id: row.get("agent_of_workspace_id"),
       })
       .collect(),
   )
