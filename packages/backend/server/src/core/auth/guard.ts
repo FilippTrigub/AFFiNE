@@ -11,7 +11,6 @@ import semver from 'semver';
 import { Socket } from 'socket.io';
 
 import {
-  AgentAccountCanNotSignIn,
   AuthenticationRequired,
   checkCanaryDateClientVersion,
   Config,
@@ -88,18 +87,17 @@ export class AuthGuard implements CanActivate, OnModuleInit {
     const session = result?.session ?? null;
 
     // A workspace agent account authenticates only through its MCP credential,
-    // which the MCP controller verifies itself on a @Public() route. Refusing
-    // it here covers every other surface at once -- GraphQL, REST and the sync
-    // gateway all resolve their identity through this method -- rather than
-    // patching each of the Rust sign-in paths separately.
+    // which the MCP controller verifies itself on a @Public() route. Dropping
+    // the identity here covers every other surface at once -- GraphQL, REST and
+    // the sync gateway all resolve their identity through this method --
+    // instead of patching each of the Rust sign-in paths separately.
+    //
+    // Dropped rather than rejected, deliberately. Throwing would lock a browser
+    // still holding an agent cookie out of the public sign-in route, and it
+    // would disclose that the account exists. Anonymous is the honest answer:
+    // anything requiring a user answers AuthenticationRequired on its own.
     if (session?.user.agentOfWorkspaceId) {
-      // On a public route the session is merely ambient: throwing would mean a
-      // browser still holding an agent's cookie could never reach /sign-in to
-      // log in as somebody else. Drop the identity and carry on anonymously.
-      if (isPublic) {
-        return null;
-      }
-      throw new AgentAccountCanNotSignIn();
+      return null;
     }
 
     return session;

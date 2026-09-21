@@ -595,12 +595,6 @@ export class DocDefaultRoleCanNotBeOwner extends UserFriendlyError {
   }
 }
 
-export class AgentAccountCanNotSignIn extends UserFriendlyError {
-  constructor(message?: string) {
-    super('action_forbidden', 'agent_account_can_not_sign_in', message);
-  }
-}
-
 export class InvalidWorkspaceDefaultDocRole extends UserFriendlyError {
   constructor(message?: string) {
     super('invalid_input', 'invalid_workspace_default_doc_role', message);
@@ -1309,7 +1303,6 @@ export enum ErrorNames {
   FAILED_TO_UPSERT_SNAPSHOT,
   ACTION_FORBIDDEN_ON_NON_TEAM_WORKSPACE,
   DOC_DEFAULT_ROLE_CAN_NOT_BE_OWNER,
-  AGENT_ACCOUNT_CAN_NOT_SIGN_IN,
   INVALID_WORKSPACE_DEFAULT_DOC_ROLE,
   CAN_NOT_BATCH_GRANT_DOC_OWNER_PERMISSIONS,
   NEW_OWNER_IS_NOT_ACTIVE_MEMBER,

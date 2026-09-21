@@ -10189,10 +10189,6 @@ export function useAFFiNEI18N(): {
       */
     ["error.DOC_DEFAULT_ROLE_CAN_NOT_BE_OWNER"](): string;
     /**
-      * `A workspace agent account can not sign in. It authenticates only through its MCP credential.`
-      */
-    ["error.AGENT_ACCOUNT_CAN_NOT_SIGN_IN"](): string;
-    /**
       * `Workspace default doc role must be one of None, Reader, Commenter, Editor or Manager.`
       */
     ["error.INVALID_WORKSPACE_DEFAULT_DOC_ROLE"](): string;

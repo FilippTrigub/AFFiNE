@@ -74,12 +74,16 @@ e2e('an established session is refused once the user is an agent', async t => {
     data: { agentOfWorkspaceId: workspace.id },
   });
 
+  // The identity is dropped, so an ambient lookup simply sees nobody...
   const after = await gql(`query { currentUser { id } }`);
-  t.is(after.errors?.[0]?.extensions?.name, 'AGENT_ACCOUNT_CAN_NOT_SIGN_IN');
   t.falsy(after.data?.currentUser);
 
-  // ...but a public route must still work, or a browser holding the cookie
-  // could never reach the sign-in endpoint to become somebody else.
+  // ...and anything that needs a user refuses on its own terms.
+  const protectedQuery = await gql(`query { workspaces { id } }`);
+  t.is(protectedQuery.errors?.[0]?.extensions?.name, 'AUTHENTICATION_REQUIRED');
+
+  // A public route must still work, or a browser holding the cookie could
+  // never reach the sign-in endpoint to become somebody else.
   const human = await app.create(Mockers.User);
   await app.login(human);
   const recovered = await gql(`query { currentUser { id } }`);
