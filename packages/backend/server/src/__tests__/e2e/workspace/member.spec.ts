@@ -30,7 +30,7 @@ import {
 import { SubscriptionPlan } from '../../../plugins/payment/types';
 import { Mockers } from '../../mocks';
 import { createRealtimeClient, realtimeRequest } from '../realtime';
-import { app, e2e } from '../test';
+import { app, e2e, waitForLatestNotification } from '../test';
 
 async function createWorkspace() {
   const owner = await app.create(Mockers.User);
@@ -71,14 +71,10 @@ e2e('should invite a user', async t => {
   });
 
   t.truthy(result, 'failed to invite user');
-  const [invitationNotification] =
-    await app.models.notification.findManyByUserId(u2.id, {
-      includeRead: true,
-      first: 1,
-      offset: 0,
-    });
-  const invitation = invitationNotification as InvitationNotification;
-  t.is(invitation.type, NotificationType.Invitation);
+  const invitation = (await waitForLatestNotification(
+    u2.id,
+    NotificationType.Invitation
+  )) as InvitationNotification;
   t.is(invitation.body.createdByUserId, owner.id);
   t.is(invitation.body.inviteId, result.inviteMembers[0].inviteId!);
 
@@ -369,15 +365,10 @@ e2e('should revoke a user on under review', async t => {
     },
   });
   t.true(revokeMember, 'failed to revoke user');
-  const [requestDeclinedNotification] =
-    await app.models.notification.findManyByUserId(user.id, {
-      includeRead: true,
-      first: 1,
-      offset: 0,
-    });
-  const declined =
-    requestDeclinedNotification as InvitationReviewDeclinedNotification;
-  t.is(declined.type, NotificationType.InvitationReviewDeclined);
+  const declined = (await waitForLatestNotification(
+    user.id,
+    NotificationType.InvitationReviewDeclined
+  )) as InvitationReviewDeclinedNotification;
   t.is(declined.userId, user.id);
   t.is(declined.body.workspaceId, workspace.id);
   t.is(declined.body.createdByUserId, owner.id);
@@ -595,12 +586,10 @@ e2e(
       },
     });
     t.truthy(result, 'failed to accept invite');
-    const [notification] = await app.models.notification.findManyByUserId(
+    const review = (await waitForLatestNotification(
       owner.id,
-      { includeRead: true, first: 1, offset: 0 }
-    );
-    const review = notification as InvitationNotification;
-    t.is(review.type, NotificationType.InvitationReviewRequest);
+      NotificationType.InvitationReviewRequest
+    )) as InvitationNotification;
     t.is(review.userId, owner.id);
     t.truthy(review.body.inviteId);
   }
@@ -634,12 +623,10 @@ e2e(
       },
     });
     t.truthy(result, 'failed to accept invite');
-    const [notification] = await app.models.notification.findManyByUserId(
+    const review = (await waitForLatestNotification(
       owner.id,
-      { includeRead: true, first: 1, offset: 0 }
-    );
-    const review = notification as InvitationNotification;
-    t.is(review.type, NotificationType.InvitationReviewRequest);
+      NotificationType.InvitationReviewRequest
+    )) as InvitationNotification;
     t.is(review.userId, owner.id);
     t.truthy(review.body.inviteId);
   }

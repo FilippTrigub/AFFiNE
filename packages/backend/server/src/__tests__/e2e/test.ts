@@ -3,7 +3,9 @@ import test, { registerCompletionHandler } from 'ava';
 
 import { BackendRuntimeProvider } from '../../core/backend-runtime';
 import { Env } from '../../env';
+import type { NotificationType, UnionNotification } from '../../models';
 import { addDocToRootDoc, mergeUpdatesInApplyWay } from '../../native';
+import { sleep } from '../utils';
 import { type TestingApp } from './create-app';
 
 export const e2e = test;
@@ -50,6 +52,46 @@ export async function reconcileSearchProjection() {
     }
   }
   throw new Error('search projection did not converge');
+}
+
+const NOTIFICATION_TIMEOUT_MS = 5000;
+const NOTIFICATION_POLL_MS = 25;
+
+/**
+ * Notifications are written by an `@OnEvent` handler that the mutation
+ * triggering them does not await, so reading straight after the mutation
+ * returns is a race -- `findManyByUserId` can legitimately come back empty.
+ * Poll until the expected notification lands, rather than asserting against
+ * `undefined` and failing as an opaque `TypeError` on property access.
+ */
+export async function waitForLatestNotification(
+  userId: string,
+  type: NotificationType,
+  timeout = NOTIFICATION_TIMEOUT_MS
+): Promise<UnionNotification> {
+  const deadline = Date.now() + timeout;
+  let latest: UnionNotification | undefined;
+
+  for (;;) {
+    [latest] = await app.models.notification.findManyByUserId(userId, {
+      includeRead: true,
+      first: 1,
+      offset: 0,
+    });
+
+    if (latest?.type === type) {
+      return latest;
+    }
+
+    if (Date.now() >= deadline) {
+      throw new Error(
+        `Timed out after ${timeout}ms waiting for a ${type} notification for user ${userId}. ` +
+          `Latest notification was ${latest ? latest.type : 'none'}.`
+      );
+    }
+
+    await sleep(NOTIFICATION_POLL_MS);
+  }
 }
 
 export * from '../mocks';
