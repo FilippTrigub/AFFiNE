@@ -97,6 +97,12 @@ export class AuthGuard implements CanActivate, OnModuleInit {
     // would disclose that the account exists. Anonymous is the honest answer:
     // anything requiring a user answers AuthenticationRequired on its own.
     if (session?.user.agentOfWorkspaceId) {
+      // `signInWithJwt` / `signInWithCookie` have already parked the session on
+      // the request, and `@CurrentUser()` reads `req.session` directly rather
+      // than this return value -- so clearing it is what actually drops the
+      // identity.
+      req.session = undefined;
+      req.authType = undefined;
       return null;
     }
 
