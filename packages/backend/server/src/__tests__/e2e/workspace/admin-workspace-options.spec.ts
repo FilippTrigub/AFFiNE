@@ -33,7 +33,9 @@ e2e(
       const listing = await gql(
         `query { adminWorkspaces(filter: { first: 10, skip: 0 }) { id } }`
       );
-      t.is(listing.errors?.[0]?.extensions?.type, 'resource_not_found');
+      // `UserFriendlyError` uppercases the type into `extensions` (def.ts:128).
+      t.is(listing.errors?.[0]?.extensions?.type, 'RESOURCE_NOT_FOUND');
+      t.is(listing.errors?.[0]?.extensions?.name, 'NOT_FOUND');
 
       const options = await gql(OPTIONS_QUERY);
       t.falsy(options.errors);
