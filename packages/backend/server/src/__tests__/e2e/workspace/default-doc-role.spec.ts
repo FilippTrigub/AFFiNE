@@ -57,6 +57,9 @@ const can = (userId: string, workspaceId: string, docId: string, action: any) =>
 async function workspaceWithUngovernedDoc() {
   const owner = await app.signup();
   const member = await app.createUser();
+  // `switchUser` only works for a user with an established session.
+  await app.login(member);
+  await app.switchUser(owner);
 
   const workspace = await app.create(Mockers.Workspace, {
     owner: { id: owner.id },

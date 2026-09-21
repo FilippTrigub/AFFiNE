@@ -2519,6 +2519,7 @@
   "error.FAILED_TO_UPSERT_SNAPSHOT": "Failed to store doc snapshot.",
   "error.ACTION_FORBIDDEN_ON_NON_TEAM_WORKSPACE": "A Team workspace is required to perform this action.",
   "error.DOC_DEFAULT_ROLE_CAN_NOT_BE_OWNER": "Doc default role can not be owner.",
+  "error.INVALID_WORKSPACE_DEFAULT_DOC_ROLE": "Workspace default doc role must be one of None, Reader, Commenter, Editor or Manager.",
   "error.CAN_NOT_BATCH_GRANT_DOC_OWNER_PERMISSIONS": "Can not batch grant doc owner permissions.",
   "error.NEW_OWNER_IS_NOT_ACTIVE_MEMBER": "Can not set a non-active member as owner.",
   "error.INVALID_INVITATION": "Invalid invitation provided.",

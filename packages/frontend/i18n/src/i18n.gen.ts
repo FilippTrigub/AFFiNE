@@ -10189,6 +10189,10 @@ export function useAFFiNEI18N(): {
       */
     ["error.DOC_DEFAULT_ROLE_CAN_NOT_BE_OWNER"](): string;
     /**
+      * `Workspace default doc role must be one of None, Reader, Commenter, Editor or Manager.`
+      */
+    ["error.INVALID_WORKSPACE_DEFAULT_DOC_ROLE"](): string;
+    /**
       * `Can not batch grant doc owner permissions.`
       */
     ["error.CAN_NOT_BATCH_GRANT_DOC_OWNER_PERMISSIONS"](): string;
