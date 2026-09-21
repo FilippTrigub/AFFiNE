@@ -12,8 +12,10 @@ import {
 } from '@nestjs/graphql';
 import { McpAccessMode } from '@prisma/client';
 
+import { SpaceNotFound } from '../../base';
 import { CurrentUser } from '../../core/auth';
 import { PermissionAccess } from '../../core/permission';
+import { DocRole, Models } from '../../models';
 import { McpCredentialService } from './credential';
 import { McpEnabled } from './feature';
 
@@ -89,13 +91,132 @@ class CreateMcpCredentialInput {
   expirationDays!: number;
 }
 
+@InputType()
+class CreateWorkspaceAgentMcpCredentialInput {
+  @Field()
+  workspaceId!: string;
+
+  @Field()
+  name!: string;
+
+  @Field(() => McpAccessMode, { defaultValue: McpAccessMode.READ_ONLY })
+  accessMode!: McpAccessMode;
+
+  @Field(() => Int, { defaultValue: 90 })
+  expirationDays!: number;
+}
+
+@ObjectType()
+class WorkspaceAgentType {
+  @Field(() => ID)
+  id!: string;
+
+  @Field()
+  email!: string;
+
+  @Field()
+  name!: string;
+}
+
+@ObjectType()
+class WorkspaceAgentDocGrantType {
+  @Field()
+  docId!: string;
+
+  @Field(() => DocRole)
+  role!: DocRole;
+}
+
 @McpEnabled()
 @Resolver()
 export class McpCredentialResolver {
   constructor(
     private readonly credentials: McpCredentialService,
+    private readonly models: Models,
     private readonly ac: PermissionAccess
   ) {}
+
+  /**
+   * Minting a token for the workspace's automation identity is an
+   * administrative act, so it sits behind `Workspace.Settings.Update`
+   * (workspace Admin) rather than the `Workspace.Read` that governs a person's
+   * own credential.
+   */
+  private async agentOf(userId: string, workspaceId: string) {
+    await this.ac
+      .user(userId)
+      .workspace(workspaceId)
+      .assert('Workspace.Settings.Update');
+
+    const agent = await this.models.workspace.getAgent(workspaceId);
+    if (!agent) {
+      throw new SpaceNotFound({ spaceId: workspaceId });
+    }
+    return agent;
+  }
+
+  @Query(() => WorkspaceAgentType, { nullable: true })
+  async workspaceAgent(
+    @CurrentUser() user: CurrentUser,
+    @Args('workspaceId') workspaceId: string
+  ) {
+    await this.ac.user(user.id).workspace(workspaceId).assert('Workspace.Read');
+    return await this.models.workspace.getAgent(workspaceId);
+  }
+
+  @Query(() => [McpCredentialType])
+  async workspaceAgentMcpCredentials(
+    @CurrentUser() user: CurrentUser,
+    @Args('workspaceId') workspaceId: string
+  ) {
+    const agent = await this.agentOf(user.id, workspaceId);
+    return await this.credentials.list(agent.id, workspaceId);
+  }
+
+  @Query(() => [WorkspaceAgentDocGrantType])
+  async workspaceAgentDocGrants(
+    @CurrentUser() user: CurrentUser,
+    @Args('workspaceId') workspaceId: string
+  ) {
+    const agent = await this.agentOf(user.id, workspaceId);
+    return await this.models.docUser.findGrantsByUser(workspaceId, agent.id);
+  }
+
+  @Mutation(() => RevealedMcpCredentialType)
+  async createWorkspaceAgentMcpCredential(
+    @CurrentUser() user: CurrentUser,
+    @Args('input') input: CreateWorkspaceAgentMcpCredentialInput
+  ) {
+    const agent = await this.agentOf(user.id, input.workspaceId);
+    return await this.credentials.create({ ...input, userId: agent.id });
+  }
+
+  @Mutation(() => RevealedMcpCredentialType)
+  async rotateWorkspaceAgentMcpCredential(
+    @CurrentUser() user: CurrentUser,
+    @Args('id', { type: () => ID }) id: string,
+    @Args('workspaceId') workspaceId: string,
+    @Args('expirationDays', { type: () => Int, defaultValue: 90 })
+    expirationDays: number
+  ) {
+    const agent = await this.agentOf(user.id, workspaceId);
+    return await this.credentials.rotate(
+      id,
+      agent.id,
+      workspaceId,
+      expirationDays
+    );
+  }
+
+  @Mutation(() => Boolean)
+  async revokeWorkspaceAgentMcpCredential(
+    @CurrentUser() user: CurrentUser,
+    @Args('id', { type: () => ID }) id: string,
+    @Args('workspaceId') workspaceId: string
+  ) {
+    const agent = await this.agentOf(user.id, workspaceId);
+    return await this.credentials.revoke(id, agent.id, workspaceId);
+  }
 
   @Query(() => [McpCredentialType])
   async mcpCredentials(

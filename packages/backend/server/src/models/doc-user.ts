@@ -130,6 +130,22 @@ export class DocUserModel extends BaseModel {
     return grants.map(grant => this.docGrantToCompat(grant));
   }
 
+  /**
+   * Every doc a principal holds an explicit grant on in one workspace, with the
+   * role. `findDirectGrantDocIdsByUser` drops the role and spans workspaces, so
+   * it cannot answer "what may this agent touch here".
+   */
+  async findGrantsByUser(workspaceId: string, userId: string) {
+    const grants = await this.db.docGrant.findMany({
+      where: { workspaceId, principalType: 'user', principalId: userId },
+      select: { docId: true, role: true },
+    });
+    return grants.map(grant => ({
+      docId: grant.docId,
+      role: docRoleFromNew(grant.role as never),
+    }));
+  }
+
   async findDirectGrantDocIdsByUser(userId: string) {
     return await this.db.docGrant.findMany({
       where: { principalType: 'user', principalId: userId },

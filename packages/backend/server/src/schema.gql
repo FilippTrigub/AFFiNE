@@ -737,9 +737,10 @@ input CreateUserInput {
   password: String
 }
 
-input CreateWorkspaceAgentInput {
-  email: String!
-  name: String
+input CreateWorkspaceAgentMcpCredentialInput {
+  accessMode: McpAccessMode! = READ_ONLY
+  expirationDays: Int! = 90
+  name: String!
   workspaceId: String!
 }
 
@@ -1609,10 +1610,7 @@ type Mutation {
   """Create a new workspace"""
   createWorkspace(init: Upload): WorkspaceType!
 
-  """
-  Create a workspace agent account: a non-human identity that serves one workspace over MCP and can never sign in.
-  """
-  createWorkspaceAgent(input: CreateWorkspaceAgentInput!): UserType!
+  createWorkspaceAgentMcpCredential(input: CreateWorkspaceAgentMcpCredentialInput!): RevealedMcpCredentialType!
   createWorkspaceByokLocalLease(input: CreateWorkspaceByokLocalLeaseInput!): CreateWorkspaceByokLocalLeaseResultType!
   createWorkspaceByokProfile(input: CreateWorkspaceByokProfileInput!): WorkspaceByokProfileType!
   deactivateLicense(workspaceId: String!): Boolean!
@@ -1688,8 +1686,10 @@ type Mutation {
   revokeMcpCredential(id: ID!, workspaceId: String!): Boolean!
   revokeMember(userId: String!, workspaceId: String!): Boolean!
   revokePublicDoc(docId: String!, workspaceId: String!): DocType!
+  revokeWorkspaceAgentMcpCredential(id: ID!, workspaceId: String!): Boolean!
   rotateAuthSigningKey(expectedActiveKeyId: String!): [AuthSigningKeyType!]!
   rotateMcpCredential(expirationDays: Int! = 90, id: ID!, workspaceId: String!): RevealedMcpCredentialType!
+  rotateWorkspaceAgentMcpCredential(expirationDays: Int! = 90, id: ID!, workspaceId: String!): RevealedMcpCredentialType!
   rotateWorkspaceByokCredential(input: RotateWorkspaceByokCredentialInput!): WorkspaceByokProfileType!
   sendChangeEmail(callbackUrl: String!): Boolean!
   sendChangePasswordEmail(callbackUrl: String!, email: String @deprecated(reason: "fetched from signed in user")): Boolean!
@@ -2021,6 +2021,9 @@ type Query {
 
   """Get workspace by id"""
   workspace(id: String!): WorkspaceType!
+  workspaceAgent(workspaceId: String!): WorkspaceAgentType
+  workspaceAgentDocGrants(workspaceId: String!): [WorkspaceAgentDocGrantType!]!
+  workspaceAgentMcpCredentials(workspaceId: String!): [McpCredentialType!]!
 
   """Get workspace role permissions"""
   workspaceRolePermissions(id: String!): WorkspaceRolePermissions! @deprecated(reason: "use WorkspaceType[permissions] instead")
@@ -2695,6 +2698,17 @@ input WorkspaceByokCapabilityInput {
   features: [ByokModelFeature!]!
   input: [ByokModelInput!]!
   output: [ByokModelOutput!]!
+}
+
+type WorkspaceAgentDocGrantType {
+  docId: String!
+  role: DocRole!
+}
+
+type WorkspaceAgentType {
+  email: String!
+  id: ID!
+  name: String!
 }
 
 type WorkspaceByokCapabilityType {

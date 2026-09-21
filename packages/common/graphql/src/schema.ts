@@ -857,9 +857,10 @@ export interface CreateUserInput {
   password?: InputMaybe<Scalars['String']['input']>;
 }
 
-export interface CreateWorkspaceAgentInput {
-  email: Scalars['String']['input'];
-  name?: InputMaybe<Scalars['String']['input']>;
+export interface CreateWorkspaceAgentMcpCredentialInput {
+  accessMode?: McpAccessMode;
+  expirationDays?: Scalars['Int']['input'];
+  name: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
 }
 
@@ -1799,8 +1800,7 @@ export interface Mutation {
   createUser: UserType;
   /** Create a new workspace */
   createWorkspace: WorkspaceType;
-  /** Create a workspace agent account: a non-human identity that serves one workspace over MCP and can never sign in. */
-  createWorkspaceAgent: UserType;
+  createWorkspaceAgentMcpCredential: RevealedMcpCredentialType;
   createWorkspaceByokLocalLease: CreateWorkspaceByokLocalLeaseResultType;
   createWorkspaceByokProfile: WorkspaceByokProfileType;
   deactivateLicense: Scalars['Boolean']['output'];
@@ -1862,8 +1862,10 @@ export interface Mutation {
   revokeMcpCredential: Scalars['Boolean']['output'];
   revokeMember: Scalars['Boolean']['output'];
   revokePublicDoc: DocType;
+  revokeWorkspaceAgentMcpCredential: Scalars['Boolean']['output'];
   rotateAuthSigningKey: Array<AuthSigningKeyType>;
   rotateMcpCredential: RevealedMcpCredentialType;
+  rotateWorkspaceAgentMcpCredential: RevealedMcpCredentialType;
   rotateWorkspaceByokCredential: WorkspaceByokProfileType;
   sendChangeEmail: Scalars['Boolean']['output'];
   sendChangePasswordEmail: Scalars['Boolean']['output'];
@@ -2028,8 +2030,8 @@ export interface MutationCreateWorkspaceArgs {
   init?: InputMaybe<Scalars['Upload']['input']>;
 }
 
-export interface MutationCreateWorkspaceAgentArgs {
-  input: CreateWorkspaceAgentInput;
+export interface MutationCreateWorkspaceAgentMcpCredentialArgs {
+  input: CreateWorkspaceAgentMcpCredentialInput;
 }
 
 export interface MutationCreateWorkspaceByokLocalLeaseArgs {
@@ -2229,11 +2231,22 @@ export interface MutationRevokePublicDocArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationRevokeWorkspaceAgentMcpCredentialArgs {
+  id: Scalars['ID']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface MutationRotateAuthSigningKeyArgs {
   expectedActiveKeyId: Scalars['String']['input'];
 }
 
 export interface MutationRotateMcpCredentialArgs {
+  expirationDays?: Scalars['Int']['input'];
+  id: Scalars['ID']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationRotateWorkspaceAgentMcpCredentialArgs {
   expirationDays?: Scalars['Int']['input'];
   id: Scalars['ID']['input'];
   workspaceId: Scalars['String']['input'];
@@ -2644,6 +2657,9 @@ export interface Query {
   validateAppConfig: Array<AppConfigValidateResult>;
   /** Get workspace by id */
   workspace: WorkspaceType;
+  workspaceAgent: Maybe<WorkspaceAgentType>;
+  workspaceAgentDocGrants: Array<WorkspaceAgentDocGrantType>;
+  workspaceAgentMcpCredentials: Array<McpCredentialType>;
   /**
    * Get workspace role permissions
    * @deprecated use WorkspaceType[permissions] instead
@@ -2724,6 +2740,18 @@ export interface QueryValidateAppConfigArgs {
 
 export interface QueryWorkspaceArgs {
   id: Scalars['String']['input'];
+}
+
+export interface QueryWorkspaceAgentArgs {
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryWorkspaceAgentDocGrantsArgs {
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface QueryWorkspaceAgentMcpCredentialsArgs {
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface QueryWorkspaceRolePermissionsArgs {
@@ -3400,6 +3428,19 @@ export interface VersionRejectedDataType {
   __typename?: 'VersionRejectedDataType';
   serverVersion: Scalars['String']['output'];
   version: Scalars['String']['output'];
+}
+
+export interface WorkspaceAgentDocGrantType {
+  __typename?: 'WorkspaceAgentDocGrantType';
+  docId: Scalars['String']['output'];
+  role: DocRole;
+}
+
+export interface WorkspaceAgentType {
+  __typename?: 'WorkspaceAgentType';
+  email: Scalars['String']['output'];
+  id: Scalars['ID']['output'];
+  name: Scalars['String']['output'];
 }
 
 export interface WorkspaceByokCapabilityInput {
@@ -7345,6 +7386,112 @@ export type VerifyEmailMutation = {
   verifyEmail: boolean;
 };
 
+export type WorkspaceAgentQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+}>;
+
+export type WorkspaceAgentQuery = {
+  __typename?: 'Query';
+  workspaceAgent: {
+    __typename?: 'WorkspaceAgentType';
+    id: string;
+    email: string;
+    name: string;
+  } | null;
+};
+
+export type WorkspaceAgentMcpCredentialsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+}>;
+
+export type WorkspaceAgentMcpCredentialsQuery = {
+  __typename?: 'Query';
+  workspaceAgentMcpCredentials: Array<{
+    __typename?: 'McpCredentialType';
+    id: string;
+    name: string;
+    fingerprint: string;
+    accessMode: McpAccessMode;
+    createdAt: string;
+    expiresAt: string;
+    lastUsedAt: string | null;
+    revokedAt: string | null;
+    graceEndsAt: string | null;
+    status: McpCredentialStatus;
+  }>;
+};
+
+export type WorkspaceAgentDocGrantsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+}>;
+
+export type WorkspaceAgentDocGrantsQuery = {
+  __typename?: 'Query';
+  workspaceAgentDocGrants: Array<{
+    __typename?: 'WorkspaceAgentDocGrantType';
+    docId: string;
+    role: DocRole;
+  }>;
+};
+
+export type CreateWorkspaceAgentMcpCredentialMutationVariables = Exact<{
+  input: CreateWorkspaceAgentMcpCredentialInput;
+}>;
+
+export type CreateWorkspaceAgentMcpCredentialMutation = {
+  __typename?: 'Mutation';
+  createWorkspaceAgentMcpCredential: {
+    __typename?: 'RevealedMcpCredentialType';
+    token: string;
+    credential: {
+      __typename?: 'McpCredentialType';
+      id: string;
+      name: string;
+      fingerprint: string;
+      accessMode: McpAccessMode;
+      createdAt: string;
+      expiresAt: string;
+      graceEndsAt: string | null;
+      status: McpCredentialStatus;
+    };
+  };
+};
+
+export type RotateWorkspaceAgentMcpCredentialMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+  workspaceId: Scalars['String']['input'];
+  expirationDays: Scalars['Int']['input'];
+}>;
+
+export type RotateWorkspaceAgentMcpCredentialMutation = {
+  __typename?: 'Mutation';
+  rotateWorkspaceAgentMcpCredential: {
+    __typename?: 'RevealedMcpCredentialType';
+    token: string;
+    credential: {
+      __typename?: 'McpCredentialType';
+      id: string;
+      name: string;
+      fingerprint: string;
+      accessMode: McpAccessMode;
+      createdAt: string;
+      expiresAt: string;
+      graceEndsAt: string | null;
+      status: McpCredentialStatus;
+    };
+  };
+};
+
+export type RevokeWorkspaceAgentMcpCredentialMutationVariables = Exact<{
+  id: Scalars['ID']['input'];
+  workspaceId: Scalars['String']['input'];
+}>;
+
+export type RevokeWorkspaceAgentMcpCredentialMutation = {
+  __typename?: 'Mutation';
+  revokeWorkspaceAgentMcpCredential: boolean;
+};
+
 export type WorkspaceBlobQuotaQueryVariables = Exact<{
   id: Scalars['String']['input'];
 }>;
@@ -8138,6 +8285,21 @@ export type Queries =
       response: SubscriptionQuery;
     }
   | {
+      name: 'workspaceAgentQuery';
+      variables: WorkspaceAgentQueryVariables;
+      response: WorkspaceAgentQuery;
+    }
+  | {
+      name: 'workspaceAgentMcpCredentialsQuery';
+      variables: WorkspaceAgentMcpCredentialsQueryVariables;
+      response: WorkspaceAgentMcpCredentialsQuery;
+    }
+  | {
+      name: 'workspaceAgentDocGrantsQuery';
+      variables: WorkspaceAgentDocGrantsQueryVariables;
+      response: WorkspaceAgentDocGrantsQuery;
+    }
+  | {
       name: 'workspaceBlobQuotaQuery';
       variables: WorkspaceBlobQuotaQueryVariables;
       response: WorkspaceBlobQuotaQuery;
@@ -8608,6 +8770,21 @@ export type Mutations =
       name: 'verifyEmailMutation';
       variables: VerifyEmailMutationVariables;
       response: VerifyEmailMutation;
+    }
+  | {
+      name: 'createWorkspaceAgentMcpCredentialMutation';
+      variables: CreateWorkspaceAgentMcpCredentialMutationVariables;
+      response: CreateWorkspaceAgentMcpCredentialMutation;
+    }
+  | {
+      name: 'rotateWorkspaceAgentMcpCredentialMutation';
+      variables: RotateWorkspaceAgentMcpCredentialMutationVariables;
+      response: RotateWorkspaceAgentMcpCredentialMutation;
+    }
+  | {
+      name: 'revokeWorkspaceAgentMcpCredentialMutation';
+      variables: RevokeWorkspaceAgentMcpCredentialMutationVariables;
+      response: RevokeWorkspaceAgentMcpCredentialMutation;
     }
   | {
       name: 'deleteWorkspaceByokProfileMutation';

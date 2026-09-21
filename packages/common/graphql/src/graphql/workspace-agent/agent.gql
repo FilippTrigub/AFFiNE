@@ -1,0 +1,75 @@
+query workspaceAgent($workspaceId: String!) {
+  workspaceAgent(workspaceId: $workspaceId) {
+    id
+    email
+    name
+  }
+}
+
+query workspaceAgentMcpCredentials($workspaceId: String!) {
+  workspaceAgentMcpCredentials(workspaceId: $workspaceId) {
+    id
+    name
+    fingerprint
+    accessMode
+    createdAt
+    expiresAt
+    lastUsedAt
+    revokedAt
+    graceEndsAt
+    status
+  }
+}
+
+query workspaceAgentDocGrants($workspaceId: String!) {
+  workspaceAgentDocGrants(workspaceId: $workspaceId) {
+    docId
+    role
+  }
+}
+
+mutation createWorkspaceAgentMcpCredential(
+  $input: CreateWorkspaceAgentMcpCredentialInput!
+) {
+  createWorkspaceAgentMcpCredential(input: $input) {
+    token
+    credential {
+      id
+      name
+      fingerprint
+      accessMode
+      createdAt
+      expiresAt
+      graceEndsAt
+      status
+    }
+  }
+}
+
+mutation rotateWorkspaceAgentMcpCredential(
+  $id: ID!
+  $workspaceId: String!
+  $expirationDays: Int!
+) {
+  rotateWorkspaceAgentMcpCredential(
+    id: $id
+    workspaceId: $workspaceId
+    expirationDays: $expirationDays
+  ) {
+    token
+    credential {
+      id
+      name
+      fingerprint
+      accessMode
+      createdAt
+      expiresAt
+      graceEndsAt
+      status
+    }
+  }
+}
+
+mutation revokeWorkspaceAgentMcpCredential($id: ID!, $workspaceId: String!) {
+  revokeWorkspaceAgentMcpCredential(id: $id, workspaceId: $workspaceId)
+}

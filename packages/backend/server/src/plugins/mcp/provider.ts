@@ -4,6 +4,7 @@ import z from 'zod/v3';
 
 import { DocReader, DocWriter } from '../../core/doc';
 import { PermissionAccess } from '../../core/permission';
+import { DocRole, Models } from '../../models';
 import { DocumentRetrievalService } from '../retrieval/document';
 
 type McpTextContent = {
@@ -98,6 +99,7 @@ function defineTool<T extends z.ZodTypeAny>(
 export class WorkspaceMcpProvider {
   constructor(
     private readonly ac: PermissionAccess,
+    private readonly models: Models,
     private readonly reader: DocReader,
     private readonly writer: DocWriter,
     private readonly retrieval: DocumentRetrievalService
@@ -109,6 +111,27 @@ export class WorkspaceMcpProvider {
     accessMode: McpAccessMode = McpAccessMode.READ_ONLY
   ): Promise<WorkspaceMcpServer> {
     await this.ac.user(userId).workspace(workspaceId).assert('Workspace.Read');
+
+    /**
+     * For a workspace agent, its explicit `doc_grants` rows are the exhaustive
+     * list of what it may touch, and a doc with no grant is invisible to it.
+     *
+     * The permission engine cannot express this: a member with no grant falls
+     * through to the workspace's `member_default_doc_role`, which is a property
+     * of the doc, not of the user -- so containing the agent there would mean
+     * setting the workspace to deny-by-default and stripping every human member
+     * at the same time. Enforcing it at this boundary is safe because an agent
+     * identity is refused on every other surface (`core/auth/guard.ts`), so MCP
+     * is the only way it can act.
+     *
+     * `null` for a human: their own permissions govern, exactly as before.
+     */
+    const agentGrants = await this.agentGrants(userId, workspaceId);
+    const grantedRole = (docId: string) => agentGrants?.get(docId) ?? null;
+    const agentMayRead = (docId: string) =>
+      !agentGrants || agentGrants.has(docId);
+    const agentMayWrite = (docId: string) =>
+      !agentGrants || (grantedRole(docId) ?? DocRole.None) >= DocRole.Editor;
 
     const readDocument = defineTool({
       name: 'read_document',
@@ -125,6 +148,10 @@ export class WorkspaceMcpProvider {
       },
       execute: async ({ docId }, options) => {
         const notFoundError = toolError(`Doc with id ${docId} not found.`);
+
+        // "Not found" rather than "forbidden", so an agent cannot probe for the
+        // existence of documents it was not granted.
+        if (!agentMayRead(docId)) return notFoundError;
 
         const accessible = await this.ac
           .user(userId)
@@ -175,10 +202,21 @@ export class WorkspaceMcpProvider {
         additionalProperties: false,
       },
       execute: async ({ query, doc_ids, limit }, options) => {
+        // Narrowing the candidate set before retrieval, so a hit on an
+        // ungranted doc cannot reach the agent even as an excerpt.
+        const scopedDocIds = agentGrants
+          ? (doc_ids ?? [...agentGrants.keys()]).filter(id =>
+              agentGrants.has(id)
+            )
+          : doc_ids;
+        if (agentGrants && scopedDocIds?.length === 0) {
+          return toolText(JSON.stringify({ retrieval_mode: 'none', hits: [] }));
+        }
+
         const result = await this.retrieval.search(
           { user: userId, workspace: workspaceId },
           query,
-          doc_ids,
+          scopedDocIds,
           limit ?? 10,
           options.signal
         );
@@ -249,6 +287,19 @@ export class WorkspaceMcpProvider {
               userId
             );
 
+            // An agent sees only what it holds a grant on, so without this it
+            // could not read back the document it just wrote. Editor, not
+            // Manager: it may revise its own work, not administer it.
+            if (agentGrants) {
+              await this.models.docUser.set(
+                workspaceId,
+                result.docId,
+                userId,
+                DocRole.Editor
+              );
+              agentGrants.set(result.docId, DocRole.Editor);
+            }
+
             return toolText(
               JSON.stringify({
                 success: true,
@@ -291,6 +342,8 @@ export class WorkspaceMcpProvider {
         },
         execute: async ({ docId, content }, options) => {
           const notFoundError = toolError(`Doc with id ${docId} not found.`);
+
+          if (!agentMayWrite(docId)) return notFoundError;
 
           const canUpdate = await this.ac
             .user(userId)
@@ -341,6 +394,9 @@ export class WorkspaceMcpProvider {
         },
         execute: async ({ docId, title }, options) => {
           const notFoundError = toolError(`Doc with id ${docId} not found.`);
+
+          if (!agentMayWrite(docId)) return notFoundError;
+
           const canUpdate = await this.ac
             .user(userId)
             .workspace(workspaceId)
@@ -382,5 +438,21 @@ export class WorkspaceMcpProvider {
       version: '1.0.1',
       tools,
     };
+  }
+
+  /**
+   * A doc id -> granted role map when the credential belongs to this
+   * workspace's agent, `null` when it belongs to a person.
+   */
+  private async agentGrants(userId: string, workspaceId: string) {
+    const agent = await this.models.workspace.getAgent(workspaceId);
+    if (!agent || agent.id !== userId) {
+      return null;
+    }
+    const grants = await this.models.docUser.findGrantsByUser(
+      workspaceId,
+      userId
+    );
+    return new Map(grants.map(grant => [grant.docId, grant.role]));
   }
 }

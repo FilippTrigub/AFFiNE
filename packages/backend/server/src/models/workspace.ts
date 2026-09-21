@@ -1,10 +1,23 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { Transactional } from '@nestjs-cls/transactional';
-import { Prisma, type Workspace as WorkspaceRecord } from '@prisma/client';
+import {
+  Prisma,
+  type Workspace as WorkspaceRecord,
+  WorkspaceMemberStatus,
+} from '@prisma/client';
 
 import { EventBus } from '../base';
 import { BackendRuntimeProvider } from '../core/backend-runtime/provider';
 import { BaseModel } from './base';
+import { WorkspaceRole } from './common';
+
+/**
+ * The address of a workspace's agent account. `.local` is reserved (RFC 6762)
+ * and can never receive mail, which is the point: the address is a label, not a
+ * mailbox. Workspace ids are UUIDs, so this is unique by construction.
+ */
+export const workspaceAgentEmail = (workspaceId: string) =>
+  `agent.${workspaceId}@agents.local`;
 
 type RawWorkspaceSummary = {
   id: string;
@@ -108,7 +121,50 @@ export class WorkspaceModel extends BaseModel {
     });
     this.logger.log(`Workspace created with id ${workspace.id}`);
     await this.models.workspaceUser.setOwner(workspace.id, userId);
+    await this.provisionAgent(workspace.id);
     return this.withAccessPolicy(workspace);
+  }
+
+  /**
+   * Every workspace owns one agent account: a non-human identity that
+   * automations drive over MCP. Provisioned here rather than from an event
+   * because there is no `workspace.created` event and `EventBus.emit` is
+   * fire-and-forget -- inline keeps it inside this method's transaction, the
+   * same way the access policy and the owner membership are.
+   *
+   * Idempotent, so the backfill and a re-run are both safe. Deliberately does
+   * not go through `UserModel.create`, which pre-checks the address and would
+   * throw `EmailAlreadyUsed` on a second call.
+   */
+  async provisionAgent(workspaceId: string) {
+    const email = workspaceAgentEmail(workspaceId);
+    const agent = await this.db.user.upsert({
+      where: { email },
+      update: {},
+      create: {
+        email,
+        name: 'Workspace agent',
+        registered: true,
+        agentOfWorkspaceId: workspaceId,
+      },
+    });
+
+    // Collaborator, never Admin or Owner: those inherit doc Owner
+    // unconditionally and could not be excluded from any doc.
+    await this.models.workspaceUser.set(
+      workspaceId,
+      agent.id,
+      WorkspaceRole.Collaborator,
+      { status: WorkspaceMemberStatus.Accepted }
+    );
+
+    return agent;
+  }
+
+  async getAgent(workspaceId: string) {
+    return await this.db.user.findFirst({
+      where: { agentOfWorkspaceId: workspaceId },
+    });
   }
 
   /**

@@ -2728,6 +2728,100 @@ export const verifyEmailMutation = {
 }`,
 };
 
+export const workspaceAgentQuery = {
+  id: 'workspaceAgentQuery' as const,
+  op: 'workspaceAgent',
+  query: `query workspaceAgent($workspaceId: String!) {
+  workspaceAgent(workspaceId: $workspaceId) {
+    id
+    email
+    name
+  }
+}`,
+};
+
+export const workspaceAgentMcpCredentialsQuery = {
+  id: 'workspaceAgentMcpCredentialsQuery' as const,
+  op: 'workspaceAgentMcpCredentials',
+  query: `query workspaceAgentMcpCredentials($workspaceId: String!) {
+  workspaceAgentMcpCredentials(workspaceId: $workspaceId) {
+    id
+    name
+    fingerprint
+    accessMode
+    createdAt
+    expiresAt
+    lastUsedAt
+    revokedAt
+    graceEndsAt
+    status
+  }
+}`,
+};
+
+export const workspaceAgentDocGrantsQuery = {
+  id: 'workspaceAgentDocGrantsQuery' as const,
+  op: 'workspaceAgentDocGrants',
+  query: `query workspaceAgentDocGrants($workspaceId: String!) {
+  workspaceAgentDocGrants(workspaceId: $workspaceId) {
+    docId
+    role
+  }
+}`,
+};
+
+export const createWorkspaceAgentMcpCredentialMutation = {
+  id: 'createWorkspaceAgentMcpCredentialMutation' as const,
+  op: 'createWorkspaceAgentMcpCredential',
+  query: `mutation createWorkspaceAgentMcpCredential($input: CreateWorkspaceAgentMcpCredentialInput!) {
+  createWorkspaceAgentMcpCredential(input: $input) {
+    token
+    credential {
+      id
+      name
+      fingerprint
+      accessMode
+      createdAt
+      expiresAt
+      graceEndsAt
+      status
+    }
+  }
+}`,
+};
+
+export const rotateWorkspaceAgentMcpCredentialMutation = {
+  id: 'rotateWorkspaceAgentMcpCredentialMutation' as const,
+  op: 'rotateWorkspaceAgentMcpCredential',
+  query: `mutation rotateWorkspaceAgentMcpCredential($id: ID!, $workspaceId: String!, $expirationDays: Int!) {
+  rotateWorkspaceAgentMcpCredential(
+    id: $id
+    workspaceId: $workspaceId
+    expirationDays: $expirationDays
+  ) {
+    token
+    credential {
+      id
+      name
+      fingerprint
+      accessMode
+      createdAt
+      expiresAt
+      graceEndsAt
+      status
+    }
+  }
+}`,
+};
+
+export const revokeWorkspaceAgentMcpCredentialMutation = {
+  id: 'revokeWorkspaceAgentMcpCredentialMutation' as const,
+  op: 'revokeWorkspaceAgentMcpCredential',
+  query: `mutation revokeWorkspaceAgentMcpCredential($id: ID!, $workspaceId: String!) {
+  revokeWorkspaceAgentMcpCredential(id: $id, workspaceId: $workspaceId)
+}`,
+};
+
 export const workspaceBlobQuotaQuery = {
   id: 'workspaceBlobQuotaQuery' as const,
   op: 'workspaceBlobQuota',
