@@ -5,6 +5,7 @@ import {
   Skeleton,
   useConfirmModal,
 } from '@affine/component';
+import { useGuard } from '@affine/core/components/guard';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import {
   McpCredentialService,
@@ -38,6 +39,7 @@ export const McpServerSettingPanel = () => {
   const serverService = useService(ServerService);
   const credentialsService = useService(McpCredentialService);
   const agentService = useService(WorkspaceAgentService);
+  const canManageAgent = useGuard('Workspace_Settings_Update');
   const credentials = useLiveData(credentialsService.credentials$);
   const loading = useLiveData(credentialsService.loading$);
   const error = useLiveData(credentialsService.error$);
@@ -74,9 +76,11 @@ export const McpServerSettingPanel = () => {
   const revalidate = useCallback(() => {
     // oxlint-disable-next-line typescript/no-floating-promises
     credentialsService.revalidate(workspaceId);
+    // `undefined` while the guard resolves: assume no permission rather than
+    // firing an admin-only request that would fail.
     // oxlint-disable-next-line typescript/no-floating-promises
-    agentService.revalidate(workspaceId);
-  }, [agentService, credentialsService, workspaceId]);
+    agentService.revalidate(workspaceId, canManageAgent ?? false);
+  }, [agentService, canManageAgent, credentialsService, workspaceId]);
 
   useEffect(() => revalidate(), [revalidate]);
 

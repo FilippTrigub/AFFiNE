@@ -6,6 +6,7 @@ import {
   notify,
   useConfirmModal,
 } from '@affine/component';
+import { useGuard } from '@affine/core/components/guard';
 import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hooks';
 import type {
   WorkspaceAgentCredential,
@@ -98,6 +99,10 @@ export const WorkspaceAgentSection = ({
   const agent = useLiveData(agentService.agent$);
   const credentials = useLiveData(agentService.credentials$);
   const docGrants = useLiveData(agentService.docGrants$);
+  // Mirrors the server: every agent mutation asserts `Workspace.Settings.Update`
+  // (workspace Admin). Checked here so a member is told why the controls are
+  // missing, rather than the section silently vanishing on a failed request.
+  const canManage = useGuard('Workspace_Settings_Update');
 
   const grantedIds = useMemo(
     () => (docGrants ?? []).map(grant => grant.docId),
@@ -170,6 +175,27 @@ export const WorkspaceAgentSection = ({
   }, [agentService, dialogService, grantedIds, reportError, workspaceId]);
 
   if (!agent) return null;
+
+  // `undefined` means the guard has not answered yet; showing the member
+  // message first would flash the wrong state at an admin.
+  if (canManage === undefined) return null;
+
+  if (!canManage) {
+    return (
+      <section className={styles.panel}>
+        <div className={styles.panelHeader}>
+          <div>
+            <div className={styles.title}>Agent</div>
+            <div className={styles.description}>
+              This workspace has an automation agent ({agent.email}). Only a
+              workspace admin can issue its token or choose which documents it
+              may read and write.
+            </div>
+          </div>
+        </div>
+      </section>
+    );
+  }
 
   return (
     <>
