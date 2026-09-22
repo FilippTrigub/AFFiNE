@@ -10,8 +10,9 @@ query workspaceAgentMcpCredentials($workspaceId: String!) {
   workspaceAgentMcpCredentials(workspaceId: $workspaceId) {
     id
     name
-    fingerprint
+    workspaceId
     accessMode
+    fingerprint
     createdAt
     expiresAt
     lastUsedAt
@@ -36,10 +37,13 @@ mutation createWorkspaceAgentMcpCredential(
     credential {
       id
       name
-      fingerprint
+      workspaceId
       accessMode
+      fingerprint
       createdAt
       expiresAt
+      lastUsedAt
+      revokedAt
       graceEndsAt
       status
     }
@@ -60,10 +64,13 @@ mutation rotateWorkspaceAgentMcpCredential(
     credential {
       id
       name
-      fingerprint
+      workspaceId
       accessMode
+      fingerprint
       createdAt
       expiresAt
+      lastUsedAt
+      revokedAt
       graceEndsAt
       status
     }

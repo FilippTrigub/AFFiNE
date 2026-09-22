@@ -9,6 +9,7 @@ import { useAsyncCallback } from '@affine/core/components/hooks/affine-async-hoo
 import {
   McpCredentialService,
   ServerService,
+  WorkspaceAgentService,
 } from '@affine/core/modules/cloud';
 import type { McpCredential } from '@affine/core/modules/cloud/services/mcp-credential';
 import { WorkspaceService } from '@affine/core/modules/workspace';
@@ -19,6 +20,7 @@ import { useLiveData, useService } from '@toeverything/infra';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { IntegrationSettingHeader } from '../setting';
+import { WorkspaceAgentSection } from './agent-section';
 import { McpCredentialModal } from './credential-modal';
 import MCPIcon from './MCP.inline.svg';
 import * as styles from './setting-panel.css';
@@ -35,6 +37,7 @@ export const McpServerSettingPanel = () => {
   const workspaceService = useService(WorkspaceService);
   const serverService = useService(ServerService);
   const credentialsService = useService(McpCredentialService);
+  const agentService = useService(WorkspaceAgentService);
   const credentials = useLiveData(credentialsService.credentials$);
   const loading = useLiveData(credentialsService.loading$);
   const error = useLiveData(credentialsService.error$);
@@ -71,7 +74,9 @@ export const McpServerSettingPanel = () => {
   const revalidate = useCallback(() => {
     // oxlint-disable-next-line typescript/no-floating-promises
     credentialsService.revalidate(workspaceId);
-  }, [credentialsService, workspaceId]);
+    // oxlint-disable-next-line typescript/no-floating-promises
+    agentService.revalidate(workspaceId);
+  }, [agentService, credentialsService, workspaceId]);
 
   useEffect(() => revalidate(), [revalidate]);
 
@@ -290,6 +295,14 @@ export const McpServerSettingPanel = () => {
           </div>
         )}
       </section>
+
+      <WorkspaceAgentSection
+        workspaceId={workspaceId}
+        onReveal={revealed => {
+          setRevealed(revealed);
+          setModal('reveal');
+        }}
+      />
 
       <section className={styles.panel}>
         <div className={styles.panelHeader}>

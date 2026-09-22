@@ -2747,8 +2747,9 @@ export const workspaceAgentMcpCredentialsQuery = {
   workspaceAgentMcpCredentials(workspaceId: $workspaceId) {
     id
     name
-    fingerprint
+    workspaceId
     accessMode
+    fingerprint
     createdAt
     expiresAt
     lastUsedAt
@@ -2779,10 +2780,13 @@ export const createWorkspaceAgentMcpCredentialMutation = {
     credential {
       id
       name
-      fingerprint
+      workspaceId
       accessMode
+      fingerprint
       createdAt
       expiresAt
+      lastUsedAt
+      revokedAt
       graceEndsAt
       status
     }
@@ -2803,10 +2807,13 @@ export const rotateWorkspaceAgentMcpCredentialMutation = {
     credential {
       id
       name
-      fingerprint
+      workspaceId
       accessMode
+      fingerprint
       createdAt
       expiresAt
+      lastUsedAt
+      revokedAt
       graceEndsAt
       status
     }

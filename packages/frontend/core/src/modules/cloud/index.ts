@@ -41,6 +41,12 @@ export {
   type UserSettings,
   UserSettingsService,
 } from './services/user-settings';
+export {
+  type WorkspaceAgent,
+  type WorkspaceAgentCredential,
+  type WorkspaceAgentDocGrant,
+  WorkspaceAgentService,
+} from './services/workspace-agent';
 export { WorkspaceInvoicesService } from './services/workspace-invoices';
 export { WorkspaceServerService } from './services/workspace-server';
 export { WorkspaceSubscriptionService } from './services/workspace-subscription';
@@ -116,7 +122,9 @@ import { DocScope, DocService, DocsService } from '../doc';
 import { DocCreatedByUpdatedBySyncStore } from './stores/doc-created-by-updated-by-sync';
 import { GlobalDialogService } from '../dialogs';
 import { McpCredentialService } from './services/mcp-credential';
+import { WorkspaceAgentService } from './services/workspace-agent';
 import { McpCredentialStore } from './stores/mcp-credential';
+import { WorkspaceAgentStore } from './stores/workspace-agent';
 
 export function configureCloudModule(framework: Framework) {
   configureDefaultAuthProvider(framework);
@@ -195,7 +203,9 @@ export function configureCloudModule(framework: Framework) {
     .service(UserSettingsService, [UserSettingsStore])
     .store(UserSettingsStore, [GraphQLService, NbstoreService])
     .service(McpCredentialService, [McpCredentialStore])
-    .store(McpCredentialStore, [GraphQLService]);
+    .store(McpCredentialStore, [GraphQLService])
+    .service(WorkspaceAgentService, [WorkspaceAgentStore])
+    .store(WorkspaceAgentStore, [GraphQLService]);
 
   framework
     .scope(WorkspaceScope)
