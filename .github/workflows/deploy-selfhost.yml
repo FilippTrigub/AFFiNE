@@ -1,7 +1,7 @@
 name: Deploy self-host
 
 # Fork-only workflow: builds the multi-arch image from `main` and rolls it out to
-# the Oracle Cloud VM behind https://base.drone-aid.fr.
+# the Oracle Cloud VM behind https://base.droneaid.fr.
 #
 # Upstream never touches this file, so it does not conflict on rebase.
 #
@@ -147,7 +147,7 @@ jobs:
           set -euo pipefail
           for attempt in $(seq 1 30); do
             code="$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
-              https://base.drone-aid.fr/ || true)"
+              https://base.droneaid.fr/ || true)"
             if [ "$code" = "200" ]; then
               echo "Site healthy after ${attempt} attempt(s)."
               exit 0
