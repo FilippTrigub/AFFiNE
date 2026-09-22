@@ -171,3 +171,8 @@ export const modalActions = style({
   justifyContent: 'flex-end',
   gap: 8,
 });
+// `MenuTrigger` lays its label out as `width: 0; flex: 1`, so the trigger needs
+// a width of its own or the selected value collapses to nothing.
+export const roleTrigger = style({
+  width: 140,
+});

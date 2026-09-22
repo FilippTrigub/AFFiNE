@@ -66,7 +66,9 @@ const DocGrantRow = ({
             </MenuItem>
           ))}
         >
-          <MenuTrigger>{labelOf(grant.role)}</MenuTrigger>
+          <MenuTrigger className={styles.roleTrigger}>
+            {labelOf(grant.role)}
+          </MenuTrigger>
         </Menu>
         <Button
           variant="secondary"
