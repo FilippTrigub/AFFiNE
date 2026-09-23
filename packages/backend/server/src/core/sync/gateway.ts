@@ -33,6 +33,7 @@ import {
   OnEvent,
   SpaceAccessDenied,
   SyncPermissionGenerationChanged,
+  UserFriendlyError,
 } from '../../base';
 import { Models } from '../../models';
 import {
@@ -106,6 +107,23 @@ function isBatchWsClientVersion(clientVersion: string): boolean {
   return Boolean(normalized && MIN_BATCH_WS_CLIENT_VERSION.test(normalized));
 }
 
+// LEGACY-MOBILE-SHIM: the 0.27.0–0.27.4 mobile store apps still speak the
+// pre-batch `space:join` protocol, which upstream removed. A legacy socket gets
+// its per-doc subscriptions lazily, through the same authorization as
+// `space:join-batch`. Remove the shim once 0.27.5 ships to both app stores.
+const LEGACY_WS_CLIENT_VERSION = new semver.Range('>=0.27.0 <0.27.5-0', {
+  includePrerelease: true,
+});
+const LEGACY_SHIM_BATCH_CLIENT_VERSION = '0.27.5';
+
+function isLegacyWsClientVersion(clientVersion: unknown): boolean {
+  if (typeof clientVersion !== 'string') {
+    return false;
+  }
+  const normalized = normalizeWsClientVersion(clientVersion);
+  return Boolean(normalized && LEGACY_WS_CLIENT_VERSION.test(normalized));
+}
+
 enum SpaceType {
   Workspace = 'workspace',
   Userspace = 'userspace',
@@ -125,6 +143,16 @@ interface JoinSpaceBatchMessage {
 interface LeaveSpaceMessage {
   spaceType: SpaceType;
   spaceId: string;
+}
+
+// LEGACY-MOBILE-SHIM
+interface LegacyJoinSpaceMessage extends LeaveSpaceMessage {
+  clientVersion: string;
+}
+
+// LEGACY-MOBILE-SHIM
+interface LegacyJoinAwarenessMessage extends LegacyJoinSpaceMessage {
+  docId: string;
 }
 
 interface LeaveSpaceBatchMessage extends LeaveSpaceMessage {
@@ -356,6 +384,10 @@ export class SpaceSyncGateway
     string,
     Map<string, number>
   >();
+  // LEGACY-MOBILE-SHIM: `spaceType:spaceId` -> sockets joined via `space:join`
+  private readonly legacySpaceSockets = new Map<string, Set<Socket>>();
+  // LEGACY-MOBILE-SHIM: `socketId:docKey` -> in-flight authorization
+  private readonly legacyAuthorizations = new Map<string, Promise<void>>();
 
   constructor(
     private readonly ac: PermissionAccess,
@@ -622,11 +654,214 @@ export class SpaceSyncGateway
       ?.get(this.activeDocKey(spaceType, spaceId, docId));
   }
 
+  // LEGACY-MOBILE-SHIM ------------------------------------------------------
+
+  private legacySpaceKey(spaceType: SpaceType, spaceId: string) {
+    return `${spaceType}:${spaceId}`;
+  }
+
+  private isLegacySocket(
+    client: Socket,
+    spaceType: SpaceType,
+    spaceId: string
+  ) {
+    return Boolean(
+      this.legacySpaceSockets
+        .get(this.legacySpaceKey(spaceType, spaceId))
+        ?.has(client)
+    );
+  }
+
+  private async joinLegacySpace(
+    client: Socket,
+    userId: string,
+    spaceType: SpaceType,
+    spaceId: string
+  ) {
+    const adapter = this.selectAdapter(client, spaceType);
+    await adapter.assertAccessible(spaceId, userId, 'Workspace.Sync');
+    if (!adapter.in(spaceId)) {
+      await client.join(adapter.room(spaceId));
+    }
+    const key = this.legacySpaceKey(spaceType, spaceId);
+    let sockets = this.legacySpaceSockets.get(key);
+    if (!sockets) {
+      sockets = new Set();
+      this.legacySpaceSockets.set(key, sockets);
+    }
+    sockets.add(client);
+  }
+
+  private leaveLegacySpaces(
+    client: Socket,
+    spaceType?: SpaceType,
+    spaceId?: string
+  ) {
+    const only =
+      spaceType && spaceId ? this.legacySpaceKey(spaceType, spaceId) : null;
+    for (const [key, sockets] of this.legacySpaceSockets) {
+      if (only && key !== only) continue;
+      sockets.delete(client);
+      if (sockets.size === 0) {
+        this.legacySpaceSockets.delete(key);
+      }
+    }
+  }
+
+  /**
+   * Gives a legacy socket the doc subscription that a batch client would have
+   * requested up front, re-authorizing when the permission generation moved.
+   * No-op for sockets that did not join the space via `space:join`.
+   */
+  private async ensureLegacyDocSubscription(
+    client: Socket,
+    spaceType: SpaceType,
+    spaceId: string,
+    docId: string
+  ) {
+    if (!this.isLegacySocket(client, spaceType, spaceId)) {
+      return;
+    }
+    if (this.hasActiveDocSubscription(client, spaceType, spaceId, docId)) {
+      if (spaceType !== SpaceType.Workspace) {
+        return;
+      }
+      const generation = this.activeDocGeneration(
+        client,
+        spaceType,
+        spaceId,
+        docId
+      );
+      if (
+        generation ===
+        (await this.runtime.getSyncPermissionGenerationV1(spaceId))
+      ) {
+        return;
+      }
+    }
+
+    const userId = this.resolvePresenceUserId(client);
+    if (!userId) {
+      throw new NotInSpace({ spaceId });
+    }
+
+    // Coalesce concurrent authorizations of the same doc for the same socket,
+    // e.g. a burst of fanned-out updates.
+    const key = `${client.id}:${this.activeDocKey(spaceType, spaceId, docId)}`;
+    let pending = this.legacyAuthorizations.get(key);
+    if (!pending) {
+      pending = this.authorizeLegacyDoc(
+        client,
+        userId,
+        spaceType,
+        spaceId,
+        docId
+      ).finally(() => this.legacyAuthorizations.delete(key));
+      this.legacyAuthorizations.set(key, pending);
+    }
+    await pending;
+  }
+
+  private async authorizeLegacyDoc(
+    client: Socket,
+    userId: string,
+    spaceType: SpaceType,
+    spaceId: string,
+    docId: string
+  ) {
+    // Reuses the full join-batch authorization: workspace access, reserved doc
+    // subjects, generation-stable doc permissions and rollback on failure.
+    const res = (await this.onJoinSpaceBatch(
+      { id: userId } as CurrentUser,
+      client,
+      {
+        spaces: [{ spaceType, spaceId, docId }],
+        clientVersion: LEGACY_SHIM_BATCH_CLIENT_VERSION,
+      }
+    )) as { error?: UserFriendlyError };
+    // handleDisconnect runs once; a subscription added after it would leak.
+    if (!client.connected) {
+      this.removeActiveDocSubscription(client, spaceType, spaceId, docId);
+      throw new NotInSpace({ spaceId });
+    }
+    if (res.error) {
+      throw UserFriendlyError.fromUserFriendlyErrorJSON(res.error);
+    }
+  }
+
+  /**
+   * Legacy clients learn about remote changes only through broadcasts, so they
+   * need updates for every doc they can read, not only the ones they loaded in
+   * this session. Sockets already subscribed are served by emitActiveDocUpdate.
+   */
+  private emitLegacyDocUpdate(
+    payload: SyncDocUpdatesPayload,
+    sourceSocketId?: string,
+    broadcastPayload?: BroadcastDocUpdatesMessage
+  ) {
+    const pending = Array.from(
+      this.legacySpaceSockets.get(
+        this.legacySpaceKey(payload.spaceType, payload.spaceId)
+      ) ?? []
+    ).filter(
+      socket =>
+        socket.id !== sourceSocketId &&
+        !this.hasActiveDocSubscription(
+          socket,
+          payload.spaceType,
+          payload.spaceId,
+          payload.docId
+        )
+    );
+    if (pending.length === 0) {
+      return;
+    }
+
+    const message =
+      broadcastPayload ??
+      this.buildBroadcastPayload(
+        payload.spaceType,
+        payload.spaceId,
+        payload.docId,
+        payload.updates,
+        payload.timestamp,
+        payload.editor
+      );
+    for (const socket of pending) {
+      this.ensureLegacyDocSubscription(
+        socket,
+        payload.spaceType,
+        payload.spaceId,
+        payload.docId
+      )
+        .then(() => {
+          if (
+            socket.connected &&
+            this.hasActiveDocSubscription(
+              socket,
+              payload.spaceType,
+              payload.spaceId,
+              payload.docId
+            )
+          ) {
+            socket.emit('space:broadcast-doc-updates', message);
+          }
+        })
+        .catch(() => {
+          // the socket's user cannot read this doc
+        });
+    }
+  }
+
+  // ------------------------------------------------------ LEGACY-MOBILE-SHIM
+
   private emitActiveDocUpdate(
     payload: SyncDocUpdatesPayload,
     sourceSocketId?: string,
     broadcastPayload?: BroadcastDocUpdatesMessage
   ) {
+    // LEGACY-MOBILE-SHIM
+    this.emitLegacyDocUpdate(payload, sourceSocketId, broadcastPayload);
     const sockets = this.activeDocSockets.get(
       this.activeDocKey(payload.spaceType, payload.spaceId, payload.docId)
     );
@@ -702,6 +937,7 @@ export class SpaceSyncGateway
   }
 
   handleDisconnect(client: Socket) {
+    this.leaveLegacySpaces(client); // LEGACY-MOBILE-SHIM
     this.removeAllActiveDocSubscriptions(client);
     this.connectionCount = Math.max(0, this.connectionCount - 1);
     this.trackDisconnectedSocket(client.id);
@@ -1272,10 +1508,64 @@ export class SpaceSyncGateway
     @MessageBody() { spaceType, spaceId }: LeaveSpaceMessage
   ): Promise<EventResponse<{ clientId: string; success: true }>> {
     const adapter = this.selectAdapter(client, spaceType);
+    this.leaveLegacySpaces(client, spaceType, spaceId); // LEGACY-MOBILE-SHIM
     this.removeActiveDocSubscriptionsInSpace(client, spaceType, spaceId);
     await adapter.leave(spaceId);
     await adapter.leave(spaceId, 'sync-027');
 
+    return { data: { clientId: client.id, success: true } };
+  }
+
+  // LEGACY-MOBILE-SHIM
+  @SubscribeMessage('space:join')
+  async onLegacyJoinSpace(
+    @CurrentUser() user: CurrentUser,
+    @ConnectedSocket() client: Socket,
+    @MessageBody() { spaceType, spaceId, clientVersion }: LegacyJoinSpaceMessage
+  ): Promise<EventResponse<{ clientId: string; success: boolean }>> {
+    if (
+      ![SpaceType.Userspace, SpaceType.Workspace].includes(spaceType) ||
+      !isLegacyWsClientVersion(clientVersion)
+    ) {
+      this.rejectJoin(client);
+      return { data: { clientId: client.id, success: false } };
+    }
+
+    await this.joinLegacySpace(client, user.id, spaceType, spaceId);
+    return { data: { clientId: client.id, success: true } };
+  }
+
+  // LEGACY-MOBILE-SHIM: legacy awareness may connect before `space:join`
+  @SubscribeMessage('space:join-awareness')
+  async onLegacyJoinAwareness(
+    @CurrentUser() user: CurrentUser,
+    @ConnectedSocket() client: Socket,
+    @MessageBody()
+    { spaceType, spaceId, docId, clientVersion }: LegacyJoinAwarenessMessage
+  ): Promise<EventResponse<{ clientId: string; success: boolean }>> {
+    if (
+      ![SpaceType.Userspace, SpaceType.Workspace].includes(spaceType) ||
+      !isLegacyWsClientVersion(clientVersion)
+    ) {
+      this.rejectJoin(client);
+      return { data: { clientId: client.id, success: false } };
+    }
+
+    await this.joinLegacySpace(client, user.id, spaceType, spaceId);
+    await this.ensureLegacyDocSubscription(
+      client,
+      spaceType,
+      spaceId,
+      canonicalDocId(docId, spaceId)
+    );
+    return { data: { clientId: client.id, success: true } };
+  }
+
+  // LEGACY-MOBILE-SHIM: subscriptions end with `space:leave` or the socket
+  @SubscribeMessage('space:leave-awareness')
+  async onLegacyLeaveAwareness(
+    @ConnectedSocket() client: Socket
+  ): Promise<EventResponse<{ clientId: string; success: true }>> {
     return { data: { clientId: client.id, success: true } };
   }
 
@@ -1289,6 +1579,13 @@ export class SpaceSyncGateway
     EventResponse<{ missing: string; state: string; timestamp: number }>
   > {
     const canonicalId = canonicalDocId(docId, spaceId);
+    // LEGACY-MOBILE-SHIM
+    await this.ensureLegacyDocSubscription(
+      client,
+      spaceType,
+      spaceId,
+      canonicalId
+    );
     const adapter = this.selectAdapter(client, spaceType);
     adapter.assertIn(spaceId);
     this.assertReservedDocSubject(spaceType, user.id, spaceId, canonicalId);
@@ -1445,6 +1742,8 @@ export class SpaceSyncGateway
 
     // Quota recovery mode is intentionally not applied to sync.
     this.assertReservedDocSubject(spaceType, user.id, spaceId, docId);
+    // LEGACY-MOBILE-SHIM
+    await this.ensureLegacyDocSubscription(client, spaceType, spaceId, docId);
     const active = this.hasActiveDocSubscription(
       client,
       spaceType,
@@ -1567,6 +1866,8 @@ export class SpaceSyncGateway
     const { spaceType, spaceId } = message;
     const docId = canonicalDocId(message.docId, spaceId);
     const adapter = this.selectAdapter(client, spaceType);
+    // LEGACY-MOBILE-SHIM
+    await this.ensureLegacyDocSubscription(client, spaceType, spaceId, docId);
 
     if (!this.hasActiveDocSubscription(client, spaceType, spaceId, docId)) {
       throw new NotInSpace({ spaceId });
@@ -1587,6 +1888,8 @@ export class SpaceSyncGateway
     const { spaceType, spaceId } = message;
     const docId = canonicalDocId(message.docId, spaceId);
     const adapter = this.selectAdapter(client, spaceType);
+    // LEGACY-MOBILE-SHIM
+    await this.ensureLegacyDocSubscription(client, spaceType, spaceId, docId);
 
     if (!this.hasActiveDocSubscription(client, spaceType, spaceId, docId)) {
       throw new NotInSpace({ spaceId });
