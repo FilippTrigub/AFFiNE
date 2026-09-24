@@ -17,10 +17,14 @@ import { WorkspaceBlobStorage } from '../../core/storage';
 import { Models } from '../../models';
 import { DocumentRetrievalService } from '../retrieval/document';
 import { buildBlobTools } from './tools/blobs';
+import { buildCollectionTools } from './tools/collections';
 import { McpToolContext, type McpToolDeps } from './tools/context';
 import type { McpTool, WorkspaceMcpToolDefinition } from './tools/define';
 import { buildDocumentInfoTools } from './tools/document-info';
 import { buildDocumentTools } from './tools/documents';
+import { buildFolderTools } from './tools/folders';
+import { buildSidebarTools } from './tools/sidebar';
+import { buildTagTools } from './tools/tags';
 
 export type {
   WorkspaceMcpToolDefinition,
@@ -98,6 +102,10 @@ export class WorkspaceMcpProvider {
       ...buildDocumentTools(ctx),
       ...buildDocumentInfoTools(ctx),
       ...buildBlobTools(ctx),
+      ...buildFolderTools(ctx),
+      ...buildTagTools(ctx),
+      ...buildCollectionTools(ctx),
+      ...buildSidebarTools(ctx),
     ];
 
     const tools = all

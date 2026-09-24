@@ -368,3 +368,91 @@ export function folderPath(rows: FolderRow[], folderId: string) {
   }
   return names;
 }
+
+// --------------------------------------------------------------- collections
+
+export type CollectionFilter = {
+  type: string;
+  key: string;
+  method: string;
+  value?: string;
+};
+
+export type CollectionInfo = {
+  id: string;
+  name: string;
+  rules: { filters: CollectionFilter[] };
+  allowList: string[];
+};
+
+/**
+ * Collections are plain JSON values in the root doc's `setting.collections`
+ * Y.Array (`packages/frontend/core/src/modules/collection/stores/collection.ts`).
+ */
+function collectionsArray(root: Y.Doc, create: boolean) {
+  const setting = root.getMap('setting');
+  const current = setting.get('collections');
+  if (current instanceof Y.Array) return current as Y.Array<unknown>;
+  if (!create) return null;
+  if (current !== undefined) {
+    throw new Error('Unsupported legacy collections layout');
+  }
+  const created = new Y.Array<unknown>();
+  setting.set('collections', created);
+  return created;
+}
+
+function toCollection(entry: unknown): CollectionInfo | null {
+  const raw = plain(entry) as Record<string, any> | null;
+  if (!raw || typeof raw.id !== 'string') return null;
+  return {
+    id: raw.id,
+    name: typeof raw.name === 'string' ? raw.name : '',
+    // Legacy entries carry `filterList` instead of `rules`; the client
+    // migrates them on write, and so does `replaceCollection`.
+    rules: {
+      filters: Array.isArray(raw.rules?.filters) ? raw.rules.filters : [],
+    },
+    allowList: Array.isArray(raw.allowList) ? raw.allowList : [],
+  };
+}
+
+export function listCollections(root: Y.Doc): CollectionInfo[] {
+  const collections = collectionsArray(root, false);
+  if (!collections) return [];
+  return collections
+    .toArray()
+    .map(toCollection)
+    .filter((c): c is CollectionInfo => c !== null);
+}
+
+export function insertCollection(
+  root: Y.Doc,
+  info: Omit<CollectionInfo, 'id'>
+): CollectionInfo {
+  const collections = collectionsArray(root, true);
+  if (!collections) throw new Error('Collections could not be created');
+  const created = { id: nanoid(), ...info };
+  collections.push([created]);
+  return created;
+}
+
+/** Replace a collection in place: delete + insert at the same index. */
+export function replaceCollection(
+  root: Y.Doc,
+  id: string,
+  change: (current: CollectionInfo) => CollectionInfo
+) {
+  const collections = collectionsArray(root, false);
+  if (!collections) return null;
+  const index = collections
+    .toArray()
+    .findIndex(entry => toCollection(entry)?.id === id);
+  if (index < 0) return null;
+  const current = toCollection(collections.get(index));
+  if (!current) return null;
+  const next = change(current);
+  collections.delete(index, 1);
+  collections.insert(index, [next]);
+  return next;
+}
