@@ -16,8 +16,10 @@ import { RealtimePublisher } from '../../core/realtime';
 import { WorkspaceBlobStorage } from '../../core/storage';
 import { Models } from '../../models';
 import { DocumentRetrievalService } from '../retrieval/document';
+import { buildBlobTools } from './tools/blobs';
 import { McpToolContext, type McpToolDeps } from './tools/context';
 import type { McpTool, WorkspaceMcpToolDefinition } from './tools/define';
+import { buildDocumentInfoTools } from './tools/document-info';
 import { buildDocumentTools } from './tools/documents';
 
 export type {
@@ -92,7 +94,11 @@ export class WorkspaceMcpProvider {
     }
 
     const ctx = new McpToolContext(userId, workspaceId, agentGrants, this.deps);
-    const all: McpTool[] = [...buildDocumentTools(ctx)];
+    const all: McpTool[] = [
+      ...buildDocumentTools(ctx),
+      ...buildDocumentInfoTools(ctx),
+      ...buildBlobTools(ctx),
+    ];
 
     const tools = all
       .filter(

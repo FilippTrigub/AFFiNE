@@ -41,6 +41,7 @@ export interface McpToolDeps {
 const AGENT_READ_ACTIONS = new Set<DocAction>([
   'Doc.Read',
   'Doc.Copy',
+  'Doc.Duplicate',
   'Doc.Properties.Read',
   'Doc.Comments.Read',
   'Doc.History.Read',

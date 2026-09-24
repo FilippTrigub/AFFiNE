@@ -12,14 +12,43 @@ import {
   toolJson,
   toolText,
 } from './define';
+import {
+  createDocument,
+  stripLeadingTitle,
+  updateDocumentContent,
+} from './document-write';
+import { renderReadReferences } from './references';
+import {
+  editPageTags,
+  findPage,
+  listPages,
+  loadRoot,
+  mutateRoot,
+  readTableRow,
+} from './workspace-data';
+
+const PAGE_LINK_HINT =
+  'Link to another page with `[Title](affine://<docId>)`; such links are stored as real page references.';
+
+const UNSUPPORTED_NOTE =
+  'This document contains blocks that markdown cannot represent';
+
+const modeSchema = z.enum(['page', 'edgeless']);
 
 export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
   const { userId, workspaceId, deps } = ctx;
 
+  const titleLookup = async () => {
+    const root = await loadRoot(ctx);
+    const titles = new Map(listPages(root).map(page => [page.id, page.title]));
+    root.destroy();
+    return (docId: string) => titles.get(docId);
+  };
+
   const readDocument = mcpTool('read', 'all', {
     name: 'read_document',
     title: 'Read Document',
-    description: 'Read a document with given ID',
+    description: `Read a document with given ID as markdown. Page references are rendered as \`[Title](affine://<docId>)\`. If the document holds blocks markdown cannot represent (database, attachment, embedded page, ...), a note at the end lists them: update_document refuses such documents.`,
     parser: z.object({ docId: z.string() }),
     inputSchema: {
       type: 'object',
@@ -45,7 +74,22 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
       const abortedAfterRead = abortIfNeeded(options.signal);
       if (abortedAfterRead) return abortedAfterRead;
 
-      return toolText(content.markdown);
+      let markdown = renderReadReferences(
+        content.markdown,
+        workspaceId,
+        await titleLookup()
+      );
+      const unsupported = [
+        ...new Set(
+          [...content.knownUnsupportedBlocks, ...content.unknownBlocks].map(
+            entry => entry.split(':').slice(1).join(':') || entry
+          )
+        ),
+      ];
+      if (unsupported.length) {
+        markdown += `\n\n<!-- ${UNSUPPORTED_NOTE}: ${unsupported.join(', ')}. update_document will refuse it; use the AFFiNE editor. -->\n`;
+      }
+      return toolText(markdown);
     },
   });
 
@@ -107,14 +151,16 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
     },
   });
 
-  const createDocument = mcpTool('write', 'all', {
+  const createDocumentTool = mcpTool('write', 'all', {
     name: 'create_document',
     title: 'Create Document',
-    description:
-      'Create a new document in the workspace with the given title and markdown content. Returns the ID of the created document. This tool not support insert or update database block and image yet.',
+    description: `Create a new document with the given title and markdown content. Returns the ID of the created document. ${PAGE_LINK_HINT} Images: upload with upload_image, then use \`![alt](blob://<key>)\`. Optional: \`mode\` (page or edgeless), \`tags\` (existing tag ids or names) and \`folder_id\` (file it into a sidebar folder). Database blocks and attachments are not supported.`,
     parser: z.object({
       title: z.string().min(1),
       content: z.string(),
+      mode: modeSchema.optional(),
+      tags: z.array(z.string().min(1)).max(50).optional(),
+      folder_id: z.string().min(1).optional(),
     }),
     inputSchema: {
       type: 'object',
@@ -127,35 +173,37 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
           type: 'string',
           description: 'The markdown content for the document body',
         },
+        mode: { type: 'string', enum: ['page', 'edgeless'] },
+        tags: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'Existing tag ids or names (see list_tags)',
+        },
+        folder_id: {
+          type: 'string',
+          description:
+            'Sidebar folder to add the document to (see list_folders)',
+        },
       },
       required: ['title', 'content'],
       additionalProperties: false,
     },
-    execute: async ({ title, content }, options) => {
+    execute: async ({ title, content, mode, tags, folder_id }, options) => {
+      const abortedBeforeWrite = abortIfNeeded(options.signal);
+      if (abortedBeforeWrite) return abortedBeforeWrite;
       try {
-        if (!ctx.isAgent) {
-          await ctx.assertWorkspace('Workspace.CreateDoc');
-        }
-        const abortedBeforeWrite = abortIfNeeded(options.signal);
-        if (abortedBeforeWrite) return abortedBeforeWrite;
-
-        const sanitizedTitle = sanitizeName(title, 'Title');
-        const strippedContent = content.replace(
-          /^[ \t]{0,3}#\s+[^\n]*#*\s*\n*/,
-          ''
-        );
-        const result = await deps.writer.createDoc(
-          workspaceId,
-          sanitizedTitle,
-          strippedContent,
-          userId
-        );
-        await ctx.grantAgentCreatedDoc(result.docId);
-
+        const result = await createDocument(ctx, {
+          title,
+          markdown: content,
+          mode,
+          tags,
+          folderId: folder_id,
+        });
         return toolJson({
           success: true,
           docId: result.docId,
-          message: `Document "${title}" created successfully`,
+          linkedPages: result.linkedPages,
+          message: `Document "${result.title}" created successfully`,
         });
       } catch (error) {
         return toolError(`Failed to create document: ${errorMessage(error)}`);
@@ -166,8 +214,7 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
   const updateDocument = mcpTool('write', 'all', {
     name: 'update_document',
     title: 'Update Document',
-    description:
-      'Update an existing document with new markdown content (body only). Uses structural diffing to apply minimal changes, preserving document history and enabling real-time collaboration. This does NOT update the document title. This tool not support insert or update database block and image yet.',
+    description: `Replace a document body with new markdown (body only, not the title). Uses structural diffing, so unchanged blocks keep their identity and history. ${PAGE_LINK_HINT} Refuses documents that contain blocks markdown cannot represent (read_document notes these).`,
     parser: z.object({
       docId: z.string(),
       content: z.string(),
@@ -194,13 +241,20 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
       if (abortedBeforeWrite) return abortedBeforeWrite;
 
       try {
-        await deps.writer.updateDoc(workspaceId, docId, content, userId);
+        const linkedPages = await updateDocumentContent(ctx, docId, content);
         return toolJson({
           success: true,
           docId,
+          linkedPages,
           message: 'Document updated successfully',
         });
-      } catch {
+      } catch (error) {
+        const message = errorMessage(error);
+        if (/unsupported/i.test(message)) {
+          return toolError(
+            `Document ${docId} contains blocks markdown cannot represent, so it cannot be updated through MCP: ${message}`
+          );
+        }
         return docNotFound(docId);
       }
     },
@@ -209,7 +263,8 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
   const updateDocumentMeta = mcpTool('write', 'all', {
     name: 'update_document_meta',
     title: 'Update Document Metadata',
-    description: 'Update document metadata (currently title only).',
+    description:
+      'Rename a document. For mode, template flag and other properties use set_document_properties.',
     parser: z.object({
       docId: z.string(),
       title: z.string().min(1),
@@ -252,11 +307,106 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
     },
   });
 
+  const duplicateDocument = mcpTool('write', 'all', {
+    name: 'duplicate_document',
+    title: 'Duplicate Document',
+    description:
+      'Copy a document into a new one titled "<title> (n)", with its tags and properties. Only markdown-representable content is copied: database blocks, attachments and embedded pages are left out (the result lists them).',
+    parser: z.object({
+      docId: z.string(),
+      title: z.string().min(1).optional(),
+    }),
+    inputSchema: {
+      type: 'object',
+      properties: {
+        docId: { type: 'string', description: 'The document to copy' },
+        title: {
+          type: 'string',
+          description: 'Title for the copy (default: "<title> (n)")',
+        },
+      },
+      required: ['docId'],
+      additionalProperties: false,
+    },
+    execute: async ({ docId, title }) => {
+      if (!(await ctx.canDoc(docId, 'Doc.Duplicate'))) {
+        return docNotFound(docId);
+      }
+      const content = await deps.reader.getDocMarkdown(
+        workspaceId,
+        docId,
+        false
+      );
+      if (!content) return docNotFound(docId);
+
+      try {
+        const root = await loadRoot(ctx);
+        const source = findPage(root, docId);
+        const titles = new Set(listPages(root).map(page => page.title));
+        root.destroy();
+        const baseTitle = source?.title || content.title || 'Untitled';
+
+        const properties = await readTableRow(ctx, 'docProperties', docId);
+        const copied = Object.fromEntries(
+          Object.entries(properties ?? {}).filter(
+            ([key]) =>
+              ![
+                'id',
+                'isTemplate',
+                'journal',
+                'createdBy',
+                'updatedBy',
+              ].includes(key)
+          )
+        );
+
+        const created = await createDocument(ctx, {
+          title: title ?? duplicatedTitle(baseTitle, titles),
+          markdown: stripLeadingTitle(
+            content.markdown.replaceAll(
+              `](/workspace/${workspaceId}/`,
+              '](affine://'
+            )
+          ),
+          properties: copied,
+        });
+        // Tags live in the root doc, which an agent cannot write.
+        if (!ctx.isAgent && source?.tags.length) {
+          await mutateRoot(ctx, r =>
+            editPageTags(r, created.docId, source.tags, [])
+          );
+        }
+        return toolJson({
+          success: true,
+          docId: created.docId,
+          title: created.title,
+          notCopied: [
+            ...content.knownUnsupportedBlocks,
+            ...content.unknownBlocks,
+          ],
+        });
+      } catch (error) {
+        return toolError(
+          `Failed to duplicate document: ${errorMessage(error)}`
+        );
+      }
+    },
+  });
+
   return [
     readDocument,
     docSearch,
-    createDocument,
+    createDocumentTool,
     updateDocument,
     updateDocumentMeta,
+    duplicateDocument,
   ];
+}
+
+/** Mirrors the client's `getDuplicatedDocTitle`: "Title (1)", "Title (2)", ... */
+function duplicatedTitle(title: string, existing: Set<string>) {
+  const base = title.replace(/\s\(\d+\)$/, '');
+  let n = 1;
+  while (existing.has(`${base} (${n})`)) n++;
+  return `${base} (${n})`;
 }
