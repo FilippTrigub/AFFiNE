@@ -13,6 +13,7 @@ import { DocStorageCronJob } from './job';
 import { DocStorageOptions } from './options';
 import { DatabaseDocReader, DocReader, DocReaderProvider } from './reader';
 import { DocWriter } from './writer';
+import { WorkspaceYjsMutator } from './yjs-mutator';
 
 @Module({
   imports: [BackendRuntimeModule, QuotaModule, PermissionModule, StorageModule],
@@ -24,6 +25,7 @@ import { DocWriter } from './writer';
     DatabaseDocReader,
     DocEventsListener,
     DocWriter,
+    WorkspaceYjsMutator,
   ],
   exports: [
     DatabaseDocReader,
@@ -32,6 +34,7 @@ import { DocWriter } from './writer';
     DocStorageOptions,
     PgWorkspaceDocStorageAdapter,
     PgUserspaceDocStorageAdapter,
+    WorkspaceYjsMutator,
   ],
 })
 export class DocStorageModule {}
@@ -49,6 +52,7 @@ export {
   DocWriter,
   PgUserspaceDocStorageAdapter,
   PgWorkspaceDocStorageAdapter,
+  WorkspaceYjsMutator,
 };
 
 export { DocStorageAdapter, type Editor } from './storage';

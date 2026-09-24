@@ -2,8 +2,11 @@ import './config';
 
 import { Module } from '@nestjs/common';
 
+import { CommentRealtimeModule } from '../../core/comment';
 import { DocStorageModule } from '../../core/doc';
+import { NotificationModule } from '../../core/notification';
 import { PermissionModule } from '../../core/permission';
+import { StorageModule } from '../../core/storage';
 import { IndexerModule } from '../indexer';
 import { DOCUMENT_VECTOR_SEARCH, DocumentRetrievalService } from '../retrieval';
 import { WorkspaceMcpController } from './controller';
@@ -14,7 +17,14 @@ import { McpCredentialResolver } from './resolver';
 import { NullDocumentVectorSearch } from './vector-search';
 
 @Module({
-  imports: [DocStorageModule, PermissionModule, IndexerModule],
+  imports: [
+    DocStorageModule,
+    PermissionModule,
+    IndexerModule,
+    StorageModule,
+    CommentRealtimeModule,
+    NotificationModule,
+  ],
   providers: [
     McpFeatureService,
     McpFeatureGuard,
