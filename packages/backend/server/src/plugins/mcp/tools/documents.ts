@@ -40,7 +40,11 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
 
   const titleLookup = async () => {
     const root = await loadRoot(ctx);
-    const titles = new Map(listPages(root).map(page => [page.id, page.title]));
+    const titles = new Map(
+      listPages(root)
+        .filter(page => ctx.agentMayRead(page.id))
+        .map(page => [page.id, page.title])
+    );
     root.destroy();
     return (docId: string) => titles.get(docId);
   };

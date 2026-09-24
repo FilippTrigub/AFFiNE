@@ -45,7 +45,13 @@ export function stripLeadingTitle(markdown: string) {
  */
 export async function linkifyDoc(ctx: McpToolContext, docId: string) {
   const root = await loadRoot(ctx);
-  const existing = new Set(listPages(root).map(page => page.id));
+  // Only pages the caller may read: otherwise an agent could probe for the
+  // existence of documents it was not granted by linking to them.
+  const existing = new Set(
+    listPages(root)
+      .map(page => page.id)
+      .filter(id => ctx.agentMayRead(id))
+  );
   root.destroy();
   const { result } = await ctx.deps.yjs.mutate(
     ctx.workspaceId,

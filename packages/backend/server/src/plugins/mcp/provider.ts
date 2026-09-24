@@ -17,6 +17,7 @@ import { WorkspaceBlobStorage } from '../../core/storage';
 import { Models } from '../../models';
 import { DocumentRetrievalService } from '../retrieval/document';
 import { buildBlobTools } from './tools/blobs';
+import { buildCollaborationTools } from './tools/collaboration';
 import { buildCollectionTools } from './tools/collections';
 import { McpToolContext, type McpToolDeps } from './tools/context';
 import type { McpTool, WorkspaceMcpToolDefinition } from './tools/define';
@@ -106,6 +107,7 @@ export class WorkspaceMcpProvider {
       ...buildTagTools(ctx),
       ...buildCollectionTools(ctx),
       ...buildSidebarTools(ctx),
+      ...buildCollaborationTools(ctx),
     ];
 
     const tools = all

@@ -276,24 +276,25 @@ test('MCP credentials remain endpoint-bound through rotate, revoke and expiry', 
     .send({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} })
     .expect(200);
   t.like(response.body, { jsonrpc: '2.0', id: 1 });
-  t.deepEqual(
-    (await provider.for(user.id, target.id, McpAccessMode.READ_ONLY)).tools.map(
-      tool => tool.name
-    ),
-    ['read_document', 'doc_search']
-  );
-  t.deepEqual(
-    (
-      await provider.for(user.id, target.id, McpAccessMode.READ_WRITE)
-    ).tools.map(tool => tool.name),
-    [
-      'read_document',
-      'doc_search',
-      'create_document',
-      'update_document',
-      'update_document_meta',
-    ]
-  );
+  // The full per-mode tool lists are pinned in e2e/mcp/access.spec.ts; here
+  // only that the mode gates writes and the original tools stay available.
+  const readOnly = (
+    await provider.for(user.id, target.id, McpAccessMode.READ_ONLY)
+  ).tools.map(tool => tool.name);
+  t.deepEqual(readOnly.slice(0, 2), ['read_document', 'doc_search']);
+  t.false(readOnly.includes('create_document'));
+  const readWrite = new Set((
+    await provider.for(user.id, target.id, McpAccessMode.READ_WRITE)
+  ).tools.map(tool => tool.name));
+  for (const name of [
+    'read_document',
+    'doc_search',
+    'create_document',
+    'update_document',
+    'update_document_meta',
+  ]) {
+    t.true(readWrite.has(name), name);
+  }
 
   const rotated = await credentials.rotate(
     issued.credential.id,
