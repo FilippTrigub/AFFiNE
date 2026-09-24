@@ -14,6 +14,7 @@ import {
   toolJson,
   toolText,
 } from './define';
+import { presentMarkdown } from './document-write';
 import { findPage, loadRoot, readTableRow } from './workspace-data';
 
 /**
@@ -371,7 +372,7 @@ export function buildCollaborationTools(ctx: McpToolContext): McpTool[] {
         docId,
         history.bin
       );
-      return toolText(content.markdown);
+      return toolText(await presentMarkdown(ctx, content.markdown));
     },
   });
 

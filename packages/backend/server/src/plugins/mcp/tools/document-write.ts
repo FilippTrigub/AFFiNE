@@ -1,6 +1,6 @@
 import type { McpToolContext } from './context';
 import { sanitizeName } from './define';
-import { linkifyReferences } from './references';
+import { linkifyReferences, renderReadReferences } from './references';
 import {
   addFolderLink,
   editPageTags,
@@ -143,4 +143,22 @@ export async function updateDocumentContent(
 ) {
   await ctx.deps.writer.updateDoc(ctx.workspaceId, docId, markdown, ctx.userId);
   return await linkifyDoc(ctx, docId);
+}
+
+/**
+ * Reader markdown made safe to hand to the caller: page references become
+ * `[Title](affine://<docId>)` with titles only for pages the caller may read.
+ * Every tool that returns or copies document markdown must go through this.
+ */
+export async function presentMarkdown(ctx: McpToolContext, markdown: string) {
+  const root = await loadRoot(ctx);
+  const titles = new Map(
+    listPages(root)
+      .filter(page => ctx.agentMayRead(page.id))
+      .map(page => [page.id, page.title])
+  );
+  root.destroy();
+  return renderReadReferences(markdown, ctx.workspaceId, docId =>
+    titles.get(docId)
+  );
 }

@@ -81,6 +81,10 @@ export function linkifyReferences(
 
 /**
  * Rewrite page references in reader output to `[<title>](affine://<docId>)`.
+ *
+ * `titleOf` returns `undefined` for a doc the caller may not read. Such a
+ * reference is rendered as "Untitled" and never falls back to the reader's own
+ * link text, which can carry the hidden doc's title or alias.
  */
 export function renderReadReferences(
   markdown: string,
@@ -91,8 +95,8 @@ export function renderReadReferences(
     `\\[([^\\]]*)\\]\\(/workspace/${escapeRegExp(workspaceId)}/(${DOC_ID})\\)`,
     'g'
   );
-  return markdown.replace(pattern, (_match, text: string, docId: string) => {
-    const title = titleOf(docId) || text.trim() || 'Untitled';
+  return markdown.replace(pattern, (_match, _text: string, docId: string) => {
+    const title = titleOf(docId) || 'Untitled';
     return `[${title.replace(/[[\]]/g, '')}](affine://${docId})`;
   });
 }

@@ -14,10 +14,10 @@ import {
 } from './define';
 import {
   createDocument,
+  presentMarkdown,
   stripLeadingTitle,
   updateDocumentContent,
 } from './document-write';
-import { renderReadReferences } from './references';
 import {
   editPageTags,
   findPage,
@@ -37,17 +37,6 @@ const modeSchema = z.enum(['page', 'edgeless']);
 
 export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
   const { userId, workspaceId, deps } = ctx;
-
-  const titleLookup = async () => {
-    const root = await loadRoot(ctx);
-    const titles = new Map(
-      listPages(root)
-        .filter(page => ctx.agentMayRead(page.id))
-        .map(page => [page.id, page.title])
-    );
-    root.destroy();
-    return (docId: string) => titles.get(docId);
-  };
 
   const readDocument = mcpTool('read', 'all', {
     name: 'read_document',
@@ -78,11 +67,7 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
       const abortedAfterRead = abortIfNeeded(options.signal);
       if (abortedAfterRead) return abortedAfterRead;
 
-      let markdown = renderReadReferences(
-        content.markdown,
-        workspaceId,
-        await titleLookup()
-      );
+      let markdown = await presentMarkdown(ctx, content.markdown);
       const unsupported = [
         ...new Set(
           [...content.knownUnsupportedBlocks, ...content.unknownBlocks].map(
@@ -367,10 +352,7 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
         const created = await createDocument(ctx, {
           title: title ?? duplicatedTitle(baseTitle, titles),
           markdown: stripLeadingTitle(
-            content.markdown.replaceAll(
-              `](/workspace/${workspaceId}/`,
-              '](affine://'
-            )
+            await presentMarkdown(ctx, content.markdown)
           ),
           properties: copied,
         });

@@ -1,3 +1,6 @@
+import * as Y from 'yjs';
+
+import { WorkspaceYjsMutator } from '../../../core/doc';
 import { DocRole, WorkspaceRole } from '../../../models';
 import { app, e2e, Mockers } from '../test';
 import { call, callTool, enableMcp, ownedWorkspace, toolNames } from './utils';
@@ -192,4 +195,60 @@ e2e('a plain collaborator cannot define custom properties', async t => {
     name: 'x',
     type: 'text',
   });
+});
+
+e2e('titles of ungranted docs never reach an agent', async t => {
+  const owner = await app.signup();
+  const workspace = await app.create(Mockers.Workspace, {
+    owner: { id: owner.id },
+    snapshot: true,
+  });
+  const ws = workspace.id;
+  const agent = await app.models.workspace.provisionAgent(ws);
+
+  const secret = await call(owner.id, ws, 'create_document', {
+    title: 'Secret board minutes',
+    content: 'x',
+  });
+  const shared = await call(owner.id, ws, 'create_document', {
+    title: 'Shared',
+    content: `See [Secret board minutes](affine://${secret.docId}).`,
+  });
+  t.is(shared.linkedPages, 1);
+  // Give the reference an alias, as the editor does when a link is renamed;
+  // the native reader prints the alias as the link text.
+  await app
+    .get(WorkspaceYjsMutator)
+    .mutate(ws, shared.docId, { editorId: owner.id }, doc => {
+      for (const block of doc.getMap<unknown>('blocks').values()) {
+        const text = block instanceof Y.Map ? block.get('prop:text') : null;
+        if (!(text instanceof Y.Text)) continue;
+        let offset = 0;
+        for (const op of text.toDelta() as {
+          insert: string;
+          attributes?: { reference?: Record<string, unknown> };
+        }[]) {
+          if (op.attributes?.reference) {
+            text.format(offset, op.insert.length, {
+              reference: { ...op.attributes.reference, title: 'Secret alias' },
+            });
+          }
+          offset += op.insert.length;
+        }
+      }
+    });
+  await app.models.docUser.set(ws, shared.docId, agent.id, DocRole.Reader);
+
+  // The owner sees the title...
+  const ownerRead = await call(owner.id, ws, 'read_document', {
+    docId: shared.docId,
+  });
+  t.true(ownerRead.includes('Secret board minutes'));
+
+  // ...the agent does not, not even through the reader's own link text.
+  const agentRead = await call(agent.id, ws, 'read_document', {
+    docId: shared.docId,
+  });
+  t.false(agentRead.includes('Secret'));
+  t.true(agentRead.includes(`[Untitled](affine://${secret.docId})`));
 });
