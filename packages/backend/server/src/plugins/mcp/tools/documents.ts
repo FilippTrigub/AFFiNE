@@ -40,6 +40,27 @@ const UPDATE_BLOCKING_FLAVOURS = new Set([
   'affine:latex',
 ]);
 
+/**
+ * Block types markdown cannot carry. The reader also lists structural blocks
+ * (note, surface, frame) and callouts for every page; only these make the
+ * native update refuse a document or get lost when copying.
+ */
+function unrepresentableBlocks(content: {
+  knownUnsupportedBlocks: string[];
+  unknownBlocks: string[];
+}) {
+  const flavourOf = (entry: string) =>
+    entry.split(':').slice(1).join(':') || entry;
+  return [
+    ...new Set([
+      ...content.knownUnsupportedBlocks
+        .map(flavourOf)
+        .filter(flavour => UPDATE_BLOCKING_FLAVOURS.has(flavour)),
+      ...content.unknownBlocks.map(flavourOf),
+    ]),
+  ];
+}
+
 const modeSchema = z.enum(['page', 'edgeless']);
 
 export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
@@ -75,18 +96,7 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
       if (abortedAfterRead) return abortedAfterRead;
 
       let markdown = await presentMarkdown(ctx, content.markdown);
-      // The reader lists structural blocks (note, surface, frame) and callouts
-      // for every page; only these make the native update refuse a document.
-      const flavourOf = (entry: string) =>
-        entry.split(':').slice(1).join(':') || entry;
-      const unsupported = [
-        ...new Set([
-          ...content.knownUnsupportedBlocks
-            .map(flavourOf)
-            .filter(flavour => UPDATE_BLOCKING_FLAVOURS.has(flavour)),
-          ...content.unknownBlocks.map(flavourOf),
-        ]),
-      ];
+      const unsupported = unrepresentableBlocks(content);
       if (unsupported.length) {
         markdown += `\n\n<!-- ${UNSUPPORTED_NOTE}: ${unsupported.join(', ')}. update_document will refuse it; use the AFFiNE editor. -->\n`;
       }
@@ -378,10 +388,7 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
           success: true,
           docId: created.docId,
           title: created.title,
-          notCopied: [
-            ...content.knownUnsupportedBlocks,
-            ...content.unknownBlocks,
-          ],
+          notCopied: unrepresentableBlocks(content),
         });
       } catch (error) {
         return toolError(

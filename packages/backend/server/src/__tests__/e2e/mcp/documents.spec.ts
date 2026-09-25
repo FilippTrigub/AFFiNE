@@ -144,6 +144,8 @@ e2e(
       docId: source.docId,
     });
     t.is(copy.title, 'Plan (1)');
+    // Structural blocks every page has are not reported as lost.
+    t.deepEqual(copy.notCopied, []);
     const info = await call(owner.id, workspace.id, 'get_document_info', {
       docId: copy.docId,
     });
