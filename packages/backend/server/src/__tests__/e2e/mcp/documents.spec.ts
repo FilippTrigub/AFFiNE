@@ -33,6 +33,8 @@ e2e('page links become real references and survive a round-trip', async t => {
   });
   t.true(read.includes(`[Guest list](affine://${target.docId})`));
   t.true(read.includes('https://example.com'));
+  // A plain page carries no "unsupported blocks" warning.
+  t.false(read.includes('<!--'));
 
   // Writing back what was read keeps the reference.
   await call(owner.id, workspace.id, 'update_document', {

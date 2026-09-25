@@ -33,6 +33,13 @@ const PAGE_LINK_HINT =
 const UNSUPPORTED_NOTE =
   'This document contains blocks that markdown cannot represent';
 
+const UPDATE_BLOCKING_FLAVOURS = new Set([
+  'affine:attachment',
+  'affine:embed-linked-doc',
+  'affine:embed-synced-doc',
+  'affine:latex',
+]);
+
 const modeSchema = z.enum(['page', 'edgeless']);
 
 export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
@@ -68,12 +75,17 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
       if (abortedAfterRead) return abortedAfterRead;
 
       let markdown = await presentMarkdown(ctx, content.markdown);
+      // The reader lists structural blocks (note, surface, frame) and callouts
+      // for every page; only these make the native update refuse a document.
+      const flavourOf = (entry: string) =>
+        entry.split(':').slice(1).join(':') || entry;
       const unsupported = [
-        ...new Set(
-          [...content.knownUnsupportedBlocks, ...content.unknownBlocks].map(
-            entry => entry.split(':').slice(1).join(':') || entry
-          )
-        ),
+        ...new Set([
+          ...content.knownUnsupportedBlocks
+            .map(flavourOf)
+            .filter(flavour => UPDATE_BLOCKING_FLAVOURS.has(flavour)),
+          ...content.unknownBlocks.map(flavourOf),
+        ]),
       ];
       if (unsupported.length) {
         markdown += `\n\n<!-- ${UNSUPPORTED_NOTE}: ${unsupported.join(', ')}. update_document will refuse it; use the AFFiNE editor. -->\n`;
