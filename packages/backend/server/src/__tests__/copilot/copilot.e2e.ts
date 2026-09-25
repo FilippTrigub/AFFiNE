@@ -283,9 +283,11 @@ test('MCP credentials remain endpoint-bound through rotate, revoke and expiry', 
   ).tools.map(tool => tool.name);
   t.deepEqual(readOnly.slice(0, 2), ['read_document', 'doc_search']);
   t.false(readOnly.includes('create_document'));
-  const readWrite = new Set((
-    await provider.for(user.id, target.id, McpAccessMode.READ_WRITE)
-  ).tools.map(tool => tool.name));
+  const readWrite = new Set(
+    (
+      await provider.for(user.id, target.id, McpAccessMode.READ_WRITE)
+    ).tools.map(tool => tool.name)
+  );
   for (const name of [
     'read_document',
     'doc_search',
