@@ -11,7 +11,11 @@ import { ErrorBoundary } from 'react-error-boundary';
 
 import { CloudSvg } from '../cloud-svg';
 import { CopyLinkButton } from './copy-link-button';
-import { MembersPermission, PublicDoc } from './general-access';
+import {
+  MembersPermission,
+  PublicDoc,
+  PublishedTranslations,
+} from './general-access';
 import * as styles from './index.css';
 import { InviteInput } from './invite-member-editor';
 import { MembersRow } from './member-management';
@@ -106,6 +110,7 @@ export const AFFiNESharePage = (
           disabled={!canManageUsers}
         />
         <PublicDoc disabled={!canPublish} />
+        {isSharedPage && canPublish ? <PublishedTranslations /> : null}
       </div>
       <Divider className={styles.divider} />
       <CopyLinkButton workspaceId={workspaceId} />

@@ -1,16 +1,10 @@
 import { Menu, MenuItem, MenuTrigger } from '@affine/component';
+import { translationLanguageName as languageName } from '@affine/core/modules/share-doc';
 import { useI18n } from '@affine/i18n';
 import { LanguageIcon } from '@blocksuite/icons/rc';
 import { useLocation, useNavigate } from 'react-router-dom';
 
-import {
-  getSearchWithLang,
-  SHARED_LANGUAGE_NAMES,
-  type SharedTranslations,
-} from './share-page.utils';
-
-const languageName = (lang: string) =>
-  SHARED_LANGUAGE_NAMES[lang] ?? lang.toUpperCase();
+import { getSearchWithLang, type SharedTranslations } from './share-page.utils';
 
 /** Lets a reader of a public doc switch between its published translations. */
 export function ShareLanguageSwitch({

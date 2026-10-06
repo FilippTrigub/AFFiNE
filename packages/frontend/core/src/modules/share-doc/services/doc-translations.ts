@@ -22,7 +22,6 @@ export class DocTranslationsService extends Service {
   translations$ = new LiveData<DocTranslation[]>([]);
   /** False when the server has translation turned off. */
   available$ = new LiveData(false);
-  error$ = new LiveData<unknown>(null);
   inProgress$ = this.translations$.map(rows =>
     rows.some(row => row.status === 'pending' || row.status === 'running')
   );

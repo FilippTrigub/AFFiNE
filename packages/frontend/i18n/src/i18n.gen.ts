@@ -7572,6 +7572,46 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.share-menu.option.link.readonly.description"](): string;
     /**
+      * `Readers of the public page can switch to these languages. Translations are machine-made and do not follow later edits until you update them.`
+      */
+    ["com.affine.share-menu.translations.hint"](): string;
+    /**
+      * `Translations`
+      */
+    ["com.affine.share-menu.translations.label"](): string;
+    /**
+      * `Out of date`
+      */
+    ["com.affine.share-menu.translations.out-of-date"](): string;
+    /**
+      * `Could not update translations`
+      */
+    ["com.affine.share-menu.translations.save-failed"](): string;
+    /**
+      * `Written in`
+      */
+    ["com.affine.share-menu.translations.source"](): string;
+    /**
+      * `Failed`
+      */
+    ["com.affine.share-menu.translations.status.failed"](): string;
+    /**
+      * `Queued`
+      */
+    ["com.affine.share-menu.translations.status.pending"](): string;
+    /**
+      * `Ready`
+      */
+    ["com.affine.share-menu.translations.status.ready"](): string;
+    /**
+      * `Translating…`
+      */
+    ["com.affine.share-menu.translations.status.running"](): string;
+    /**
+      * `Update translations`
+      */
+    ["com.affine.share-menu.translations.update"](): string;
+    /**
       * `Sharing for this workspace is turned off. Please contact an admin to enable it.`
       */
     ["com.affine.share-menu.workspace-sharing.disabled.tooltip"](): string;

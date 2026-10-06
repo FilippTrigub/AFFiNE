@@ -4,6 +4,10 @@ export {
 } from './services/doc-translations';
 export { ShareDocsListService } from './services/share-docs-list';
 export { ShareInfoService } from './services/share-info';
+export {
+  TRANSLATION_LANGUAGES,
+  translationLanguageName,
+} from './translation-languages';
 
 import { type Framework } from '@toeverything/infra';
 

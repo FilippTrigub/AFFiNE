@@ -118,17 +118,6 @@ export const fetchSharedTranslations = async ({
   };
 };
 
-/** Native names, so every reader can find their own language. */
-export const SHARED_LANGUAGE_NAMES: Record<string, string> = {
-  en: 'English',
-  fr: 'Français',
-  es: 'Español',
-  pt: 'Português',
-  de: 'Deutsch',
-  pl: 'Polski',
-  nl: 'Nederlands',
-};
-
 export const getSearchWithLang = (search: string, lang: string | null) => {
   const searchParams = new URLSearchParams(search);
   if (lang) {
