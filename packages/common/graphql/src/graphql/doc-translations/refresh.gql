@@ -1,0 +1,11 @@
+mutation refreshDocTranslations($workspaceId: String!, $docId: String!) {
+  refreshDocTranslations(workspaceId: $workspaceId, docId: $docId) {
+    lang
+    sourceLang
+    status
+    title
+    error
+    sourceTimestamp
+    outOfDate
+  }
+}

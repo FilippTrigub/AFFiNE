@@ -1684,6 +1684,59 @@ export const getDocRolePermissionsQuery = {
 }`,
 };
 
+export const docTranslationsQuery = {
+  id: 'docTranslationsQuery' as const,
+  op: 'docTranslations',
+  query: `query docTranslations($workspaceId: String!, $docId: String!) {
+  docTranslations(workspaceId: $workspaceId, docId: $docId) {
+    lang
+    sourceLang
+    status
+    title
+    error
+    sourceTimestamp
+    outOfDate
+  }
+}`,
+};
+
+export const refreshDocTranslationsMutation = {
+  id: 'refreshDocTranslationsMutation' as const,
+  op: 'refreshDocTranslations',
+  query: `mutation refreshDocTranslations($workspaceId: String!, $docId: String!) {
+  refreshDocTranslations(workspaceId: $workspaceId, docId: $docId) {
+    lang
+    sourceLang
+    status
+    title
+    error
+    sourceTimestamp
+    outOfDate
+  }
+}`,
+};
+
+export const setDocTranslationsMutation = {
+  id: 'setDocTranslationsMutation' as const,
+  op: 'setDocTranslations',
+  query: `mutation setDocTranslations($workspaceId: String!, $docId: String!, $sourceLang: String!, $languages: [String!]!) {
+  setDocTranslations(
+    workspaceId: $workspaceId
+    docId: $docId
+    sourceLang: $sourceLang
+    languages: $languages
+  ) {
+    lang
+    sourceLang
+    status
+    title
+    error
+    sourceTimestamp
+    outOfDate
+  }
+}`,
+};
+
 export const generateLicenseKeyMutation = {
   id: 'generateLicenseKeyMutation' as const,
   op: 'generateLicenseKey',

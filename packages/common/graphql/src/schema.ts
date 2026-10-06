@@ -1022,6 +1022,26 @@ export enum DocRole {
   Reader = 'Reader',
 }
 
+export enum DocTranslationStatus {
+  failed = 'failed',
+  pending = 'pending',
+  ready = 'ready',
+  running = 'running',
+}
+
+export interface DocTranslationType {
+  __typename?: 'DocTranslationType';
+  error: Maybe<Scalars['String']['output']>;
+  lang: Scalars['String']['output'];
+  /** The source doc changed after this translation */
+  outOfDate: Scalars['Boolean']['output'];
+  sourceLang: Scalars['String']['output'];
+  /** Source revision the served translation was made from */
+  sourceTimestamp: Maybe<Scalars['DateTime']['output']>;
+  status: DocTranslationStatus;
+  title: Maybe<Scalars['String']['output']>;
+}
+
 export interface DocType {
   __typename?: 'DocType';
   /** Doc page analytics in a time window */
@@ -1842,6 +1862,8 @@ export interface Mutation {
   /** mark notification as read */
   readNotification: Scalars['Boolean']['output'];
   recoverDoc: Scalars['DateTime']['output'];
+  /** Translate every language of a published doc again. */
+  refreshDocTranslations: Array<DocTranslationType>;
   /** Refresh current user subscriptions and return latest. */
   refreshUserSubscriptions: Array<SubscriptionType>;
   releaseDeletedBlobs: Scalars['Boolean']['output'];
@@ -1875,6 +1897,8 @@ export interface Mutation {
   sendVerifyChangeEmail: Scalars['Boolean']['output'];
   sendVerifyEmail: Scalars['Boolean']['output'];
   setBlob: Scalars['String']['output'];
+  /** Choose the languages a published doc is translated into. Languages left out are deleted. */
+  setDocTranslations: Array<DocTranslationType>;
   settleTranscriptTask: Maybe<TranscriptionResultType>;
   submitTranscriptTask: Maybe<TranscriptionResultType>;
   unlinkCalendarAccount: Scalars['Boolean']['output'];
@@ -2168,6 +2192,11 @@ export interface MutationRecoverDocArgs {
   workspaceId: Scalars['String']['input'];
 }
 
+export interface MutationRefreshDocTranslationsArgs {
+  docId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
 export interface MutationReleaseDeletedBlobsArgs {
   workspaceId: Scalars['String']['input'];
 }
@@ -2287,6 +2316,13 @@ export interface MutationSendVerifyEmailArgs {
 
 export interface MutationSetBlobArgs {
   blob: Scalars['Upload']['input'];
+  workspaceId: Scalars['String']['input'];
+}
+
+export interface MutationSetDocTranslationsArgs {
+  docId: Scalars['String']['input'];
+  languages: Array<Scalars['String']['input']>;
+  sourceLang: Scalars['String']['input'];
   workspaceId: Scalars['String']['input'];
 }
 
@@ -2634,6 +2670,7 @@ export interface Query {
   authSigningKeys: Array<AuthSigningKeyType>;
   /** Get current user */
   currentUser: Maybe<UserType>;
+  docTranslations: Array<DocTranslationType>;
   error: ErrorDataUnion;
   /** get workspace invitation info */
   getInviteInfo: InvitationType;
@@ -2697,6 +2734,11 @@ export interface QueryAdminWorkspacesArgs {
 
 export interface QueryAdminWorkspacesCountArgs {
   filter: ListWorkspaceInput;
+}
+
+export interface QueryDocTranslationsArgs {
+  docId: Scalars['String']['input'];
+  workspaceId: Scalars['String']['input'];
 }
 
 export interface QueryErrorArgs {
@@ -6094,6 +6136,65 @@ export type GetDocRolePermissionsQuery = {
   };
 };
 
+export type DocTranslationsQueryVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  docId: Scalars['String']['input'];
+}>;
+
+export type DocTranslationsQuery = {
+  __typename?: 'Query';
+  docTranslations: Array<{
+    __typename?: 'DocTranslationType';
+    lang: string;
+    sourceLang: string;
+    status: DocTranslationStatus;
+    title: string | null;
+    error: string | null;
+    sourceTimestamp: string | null;
+    outOfDate: boolean;
+  }>;
+};
+
+export type RefreshDocTranslationsMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  docId: Scalars['String']['input'];
+}>;
+
+export type RefreshDocTranslationsMutation = {
+  __typename?: 'Mutation';
+  refreshDocTranslations: Array<{
+    __typename?: 'DocTranslationType';
+    lang: string;
+    sourceLang: string;
+    status: DocTranslationStatus;
+    title: string | null;
+    error: string | null;
+    sourceTimestamp: string | null;
+    outOfDate: boolean;
+  }>;
+};
+
+export type SetDocTranslationsMutationVariables = Exact<{
+  workspaceId: Scalars['String']['input'];
+  docId: Scalars['String']['input'];
+  sourceLang: Scalars['String']['input'];
+  languages: Array<Scalars['String']['input']> | Scalars['String']['input'];
+}>;
+
+export type SetDocTranslationsMutation = {
+  __typename?: 'Mutation';
+  setDocTranslations: Array<{
+    __typename?: 'DocTranslationType';
+    lang: string;
+    sourceLang: string;
+    status: DocTranslationStatus;
+    title: string | null;
+    error: string | null;
+    sourceTimestamp: string | null;
+    outOfDate: boolean;
+  }>;
+};
+
 export type CopilotChatHistoryFragment = {
   __typename?: 'CopilotHistories';
   sessionId: string;
@@ -8123,6 +8224,11 @@ export type Queries =
       response: GetDocRolePermissionsQuery;
     }
   | {
+      name: 'docTranslationsQuery';
+      variables: DocTranslationsQueryVariables;
+      response: DocTranslationsQuery;
+    }
+  | {
       name: 'getCurrentUserFeaturesQuery';
       variables: GetCurrentUserFeaturesQueryVariables;
       response: GetCurrentUserFeaturesQuery;
@@ -8598,6 +8704,16 @@ export type Mutations =
       name: 'deleteWorkspaceMutation';
       variables: DeleteWorkspaceMutationVariables;
       response: DeleteWorkspaceMutation;
+    }
+  | {
+      name: 'refreshDocTranslationsMutation';
+      variables: RefreshDocTranslationsMutationVariables;
+      response: RefreshDocTranslationsMutation;
+    }
+  | {
+      name: 'setDocTranslationsMutation';
+      variables: SetDocTranslationsMutationVariables;
+      response: SetDocTranslationsMutation;
     }
   | {
       name: 'generateLicenseKeyMutation';

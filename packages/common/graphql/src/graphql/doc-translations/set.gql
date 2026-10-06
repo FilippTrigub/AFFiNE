@@ -1,0 +1,21 @@
+mutation setDocTranslations(
+  $workspaceId: String!
+  $docId: String!
+  $sourceLang: String!
+  $languages: [String!]!
+) {
+  setDocTranslations(
+    workspaceId: $workspaceId
+    docId: $docId
+    sourceLang: $sourceLang
+    languages: $languages
+  ) {
+    lang
+    sourceLang
+    status
+    title
+    error
+    sourceTimestamp
+    outOfDate
+  }
+}

@@ -1,0 +1,11 @@
+query docTranslations($workspaceId: String!, $docId: String!) {
+  docTranslations(workspaceId: $workspaceId, docId: $docId) {
+    lang
+    sourceLang
+    status
+    title
+    error
+    sourceTimestamp
+    outOfDate
+  }
+}
