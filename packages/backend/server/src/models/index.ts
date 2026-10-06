@@ -23,6 +23,7 @@ import { CopilotTranscriptTaskModel } from './copilot-transcript-task';
 import { CopilotUsageModel } from './copilot-usage';
 import { CopilotWorkspaceConfigModel } from './copilot-workspace';
 import { DocModel } from './doc';
+import { DocTranslationModel } from './doc-translation';
 import { DocUserModel } from './doc-user';
 import { FeatureModel } from './feature';
 import { HistoryModel } from './history';
@@ -53,6 +54,7 @@ const MODELS = {
   workspace: WorkspaceModel,
   userFeature: UserFeatureModel,
   doc: DocModel,
+  docTranslation: DocTranslationModel,
   userDoc: UserDocModel,
   workspaceUser: WorkspaceUserModel,
   docUser: DocUserModel,
@@ -148,6 +150,7 @@ export * from './copilot-transcript-task';
 export * from './copilot-usage';
 export * from './copilot-workspace';
 export * from './doc';
+export * from './doc-translation';
 export * from './doc-user';
 export * from './feature';
 export * from './history';

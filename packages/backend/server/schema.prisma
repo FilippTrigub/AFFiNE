@@ -218,6 +218,7 @@ model Workspace {
   mcpCredentials             McpCredential[]
   artifacts                  WorkspaceArtifact[]
   agentAccounts              User[]                        @relation("WorkspaceAgentAccounts")
+  docTranslations            DocTranslation[]
 
   @@index([lastCheckEmbeddings])
   @@index([createdAt])
@@ -484,6 +485,34 @@ model WorkspaceDoc {
 
   @@id([workspaceId, docId])
   @@map("workspace_pages")
+}
+
+// Machine translations of a published doc, one row per target language.
+// Served to readers of the public page; the source doc is never touched.
+model DocTranslation {
+  workspaceId     String    @map("workspace_id") @db.VarChar
+  docId           String    @map("doc_id") @db.VarChar
+  lang            String    @db.VarChar(8)
+  sourceLang      String    @map("source_lang") @db.VarChar(8)
+  // pending | running | ready | failed
+  status          String    @default("pending") @db.VarChar(16)
+  title           String?   @db.VarChar
+  // Yjs snapshot of the translated doc, served instead of the source
+  bin             Bytes?    @db.ByteA
+  error           String?   @db.VarChar
+  // Timestamp of the source snapshot this translation was made from
+  sourceTimestamp DateTime? @map("source_timestamp") @db.Timestamptz(3)
+  attempts        Int       @default(0) @db.SmallInt
+  // A pending row is not picked up before this; used to back off on 429
+  availableAt     DateTime  @default(now()) @map("available_at") @db.Timestamptz(3)
+  createdAt       DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime  @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@id([workspaceId, docId, lang])
+  @@index([status, availableAt])
+  @@map("doc_translations")
 }
 
 enum WorkspaceMemberStatus {
