@@ -45,7 +45,7 @@ const UPDATE_BLOCKING_FLAVOURS = new Set([
  * (note, surface, frame) and callouts for every page; only these make the
  * native update refuse a document or get lost when copying.
  */
-function unrepresentableBlocks(content: {
+export function unrepresentableBlocks(content: {
   knownUnsupportedBlocks: string[];
   unknownBlocks: string[];
 }) {

@@ -208,6 +208,24 @@ export const KNOWN_CONFIG_GROUPS = [
       },
     ],
   } as ConfigGroup<'mcp'>,
+  {
+    name: 'Translation',
+    module: 'translate',
+    fields: [
+      {
+        key: 'enabled',
+        desc: 'Let members add machine translations (EN, FR, ES, PT, DE, PL, NL) to docs they publish to the web. Readers of the public page get a language switcher. Translations run in the background through Google Gemini.',
+      },
+      {
+        key: 'gemini.apiKey',
+        desc: 'Google AI Studio API key. On the free tier Google may use the translated content to improve its products.',
+      },
+      {
+        key: 'gemini.model',
+        desc: 'Gemini model id, e.g. gemini-3.5-flash-lite.',
+      },
+    ],
+  } as ConfigGroup<'translate'>,
 ];
 
 export const UNKNOWN_CONFIG_GROUPS = ALL_CONFIGURABLE_MODULES.filter(

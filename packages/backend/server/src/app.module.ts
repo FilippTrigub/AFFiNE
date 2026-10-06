@@ -66,6 +66,7 @@ import { LicenseModule } from './plugins/license';
 import { McpModule } from './plugins/mcp';
 import { OAuthModule } from './plugins/oauth';
 import { PaymentModule } from './plugins/payment';
+import { TranslateModule } from './plugins/translate';
 import { WorkerModule } from './plugins/worker';
 import { ServerRealtimeHandlersModule } from './realtime-handlers.module';
 
@@ -215,6 +216,7 @@ export function buildAppModule(env: Env) {
       PaymentModule,
       CopilotModule,
       McpModule,
+      TranslateModule,
       CaptchaModule,
       OAuthModule,
       CalendarModule,
