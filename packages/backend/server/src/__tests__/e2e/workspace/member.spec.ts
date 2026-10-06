@@ -19,6 +19,8 @@ import {
   WorkspaceMemberStatus as PrismaWorkspaceMemberStatus,
 } from '@prisma/client';
 
+import { Config } from '../../../base';
+import { ServerService } from '../../../core/config';
 import { EntitlementService } from '../../../core/entitlement';
 import {
   type InvitationNotification,
@@ -389,6 +391,91 @@ e2e('should create user if not exist', async t => {
 
   const u2 = await app.get(Models).user.getUserByEmail(email);
   t.truthy(u2, 'failed to create user');
+});
+
+async function setAllowlist(userId: string, value: unknown[]) {
+  await app
+    .get(ServerService)
+    .updateConfig(userId, [
+      { module: 'auth', key: 'allowedEmailDomains', value },
+    ]);
+}
+
+async function withAllowlist(
+  t: { teardown: (fn: () => Promise<void>) => void },
+  userId: string,
+  value: unknown[]
+) {
+  await setAllowlist(userId, value);
+  t.teardown(() => setAllowlist(userId, []));
+}
+
+e2e('should record a new invitee in an active signup allowlist', async t => {
+  const { owner, workspace } = await createWorkspace();
+  await withAllowlist(t, owner.id, ['drone.test']);
+
+  const email = faker.internet.email().toLowerCase();
+  await app.login(owner);
+  const invite = () =>
+    app.gql({
+      query: inviteByEmailsMutation,
+      variables: { emails: [email], workspaceId: workspace.id },
+    });
+  await invite();
+  await invite();
+
+  t.deepEqual(app.get(Config).auth.allowedEmailDomains, [
+    'drone.test',
+    { pattern: email, workspaces: [workspace.id], role: 'Collaborator' },
+  ]);
+});
+
+e2e('should leave an empty signup allowlist empty on invite', async t => {
+  const { owner, workspace } = await createWorkspace();
+  await app.login(owner);
+  await app.gql({
+    query: inviteByEmailsMutation,
+    variables: { emails: [faker.internet.email()], workspaceId: workspace.id },
+  });
+
+  t.deepEqual(app.get(Config).auth.allowedEmailDomains, []);
+});
+
+e2e('should not record an existing user in the signup allowlist', async t => {
+  const { owner, workspace } = await createWorkspace();
+  const existing = await app.create(Mockers.User);
+  await withAllowlist(t, owner.id, ['drone.test']);
+
+  await app.login(owner);
+  await app.gql({
+    query: inviteByEmailsMutation,
+    variables: { emails: [existing.email], workspaceId: workspace.id },
+  });
+
+  t.deepEqual(app.get(Config).auth.allowedEmailDomains, ['drone.test']);
+});
+
+e2e('should still invite when the allowlist write fails', async t => {
+  const { owner, workspace } = await createWorkspace();
+  await withAllowlist(t, owner.id, ['drone.test']);
+  const server = app.get(ServerService);
+  const original = server.updateConfig.bind(server);
+  server.updateConfig = async () => {
+    throw new Error('config store down');
+  };
+  t.teardown(() => {
+    server.updateConfig = original;
+  });
+
+  const email = faker.internet.email();
+  await app.login(owner);
+  const { inviteMembers } = await app.gql({
+    query: inviteByEmailsMutation,
+    variables: { emails: [email], workspaceId: workspace.id },
+  });
+
+  t.truthy(inviteMembers[0].inviteId);
+  t.deepEqual(app.get(Config).auth.allowedEmailDomains, ['drone.test']);
 });
 
 e2e('should support pagination for member', async t => {

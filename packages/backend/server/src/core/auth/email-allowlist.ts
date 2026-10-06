@@ -175,3 +175,53 @@ export function resolveWorkspaceGrants(
 
   return [...strongest].map(([workspaceId, role]) => ({ workspaceId, role }));
 }
+
+/**
+ * The allowlist after inviting `email` to `workspaceId`, or `null` when nothing
+ * should be written.
+ *
+ * An empty list is left alone: it means "signup is open", and a single entry
+ * would flip it to deny-by-default for everyone else. Nothing is written either
+ * when a matching rule already grants the workspace. Only an entry naming this
+ * exact address is ever extended — never a domain or wildcard rule — and its
+ * existing role is kept, so an invite can neither raise nor lower it.
+ */
+export function addInviteeToAllowlist(
+  entries: readonly AllowlistEntry[] | null | undefined,
+  email: string,
+  workspaceId: string
+): AllowlistEntry[] | null {
+  const current = entries ?? [];
+  if (!normalizeAllowlist(current).length) {
+    return null;
+  }
+
+  const address = normalizeEmail(email);
+  if (
+    resolveWorkspaceGrants(address, current).some(
+      grant => grant.workspaceId === workspaceId
+    )
+  ) {
+    return null;
+  }
+
+  const index = current.findIndex(entry => {
+    const pattern = typeof entry === 'string' ? entry : entry?.pattern;
+    return pattern?.trim().toLowerCase() === address;
+  });
+
+  if (index === -1) {
+    return [
+      ...current,
+      { pattern: address, workspaces: [workspaceId], role: 'Collaborator' },
+    ];
+  }
+
+  const [existing] = normalizeAllowlist([current[index]]);
+  const upgraded: AllowlistEntryObject = {
+    pattern: existing.pattern,
+    workspaces: [...new Set([...existing.workspaces, workspaceId])],
+    role: existing.role,
+  };
+  return current.map((entry, i) => (i === index ? upgraded : entry));
+}

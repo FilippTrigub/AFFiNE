@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { ServerConfigModule } from '../config';
 import { DocStorageModule } from '../doc';
 import { DocRendererModule } from '../doc-renderer';
 import { FeatureModule } from '../features';
@@ -16,6 +17,7 @@ import {
 } from './abuse';
 import { WorkspacesController } from './controller';
 import { WorkspaceEvents } from './event';
+import { InviteAllowlistService } from './invite-allowlist.service';
 import { WorkspaceRealtimeModule } from './realtime.module';
 import {
   DocHistoryResolver,
@@ -48,6 +50,7 @@ class WorkspaceAbuseModule {}
     MailModule,
     WorkspaceRealtimeModule,
     WorkspaceAbuseModule,
+    ServerConfigModule,
   ],
   controllers: [WorkspacesController],
   providers: [
@@ -59,6 +62,7 @@ class WorkspaceAbuseModule {}
     WorkspaceBlobResolver,
     WorkspaceService,
     InviteQuotaAssertService,
+    InviteAllowlistService,
     WorkspaceEvents,
     AdminWorkspaceResolver,
   ],

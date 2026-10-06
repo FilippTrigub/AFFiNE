@@ -45,6 +45,7 @@ import { PermissionAccess, WorkspaceRole } from '../../permission';
 import { UserType } from '../../user';
 import { validators } from '../../utils/validators';
 import { getAbuseRequestSource, InviteQuotaAssertService } from '../abuse';
+import { InviteAllowlistService } from '../invite-allowlist.service';
 import { WorkspaceService } from '../service';
 import {
   InvitationType,
@@ -92,7 +93,8 @@ export class WorkspaceMemberResolver {
     private readonly workspaceService: WorkspaceService,
     private readonly config: Config,
     private readonly inviteQuota: InviteQuotaAssertService,
-    private readonly runtime: BackendRuntimeProvider
+    private readonly runtime: BackendRuntimeProvider,
+    private readonly inviteAllowlist: InviteAllowlistService
   ) {}
 
   private async assertWorkspaceNameCanInvite(workspaceId: string) {
@@ -293,6 +295,17 @@ export class WorkspaceMemberResolver {
       if (!reservationSettled) {
         await this.inviteQuota.releaseWorkspaceInviteQuota(
           admission.reservationId
+        );
+      }
+    }
+
+    // Sequential on purpose: each write replaces the whole allowlist.
+    for (const candidate of successfulCandidates) {
+      if (!candidate.target) {
+        await this.inviteAllowlist.record(
+          me.id,
+          candidate.normalizedEmail,
+          workspaceId
         );
       }
     }

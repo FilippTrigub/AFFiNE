@@ -1,6 +1,7 @@
 import test from 'ava';
 
 import {
+  addInviteeToAllowlist,
   isEmailDomainAllowed,
   resolveWorkspaceGrants,
 } from '../core/auth/email-allowlist';
@@ -157,4 +158,60 @@ test('grants from several matching entries are merged', t => {
 test('an empty allowlist permits everyone and grants nothing', t => {
   t.true(isEmailDomainAllowed('a@anywhere.test', []));
   t.deepEqual(resolveWorkspaceGrants('a@anywhere.test', []), []);
+});
+
+test('inviting into an empty allowlist writes nothing', t => {
+  t.is(addInviteeToAllowlist([], 'a@example.com', 'ws1'), null);
+});
+
+test('a new address is appended as a Collaborator entry', t => {
+  t.deepEqual(addInviteeToAllowlist(['drone.test'], 'A@Example.com', 'ws1'), [
+    'drone.test',
+    { pattern: 'a@example.com', workspaces: ['ws1'], role: 'Collaborator' },
+  ]);
+});
+
+test('an invitee already granted the workspace by a rule writes nothing', t => {
+  const entries = [
+    {
+      pattern: 'drone.test',
+      workspaces: ['ws1'],
+      role: 'Collaborator' as const,
+    },
+  ];
+  t.is(addInviteeToAllowlist(entries, 'a@drone.test', 'ws1'), null);
+});
+
+test('a domain rule for another workspace does not suppress the entry', t => {
+  const entries = [{ pattern: 'drone.test', workspaces: ['ws1'] }];
+  t.deepEqual(addInviteeToAllowlist(entries, 'a@drone.test', 'ws2'), [
+    ...entries,
+    { pattern: 'a@drone.test', workspaces: ['ws2'], role: 'Collaborator' },
+  ]);
+});
+
+test('a bare address string is upgraded and workspaces are unioned', t => {
+  t.deepEqual(
+    addInviteeToAllowlist(['a@example.com'], 'a@example.com', 'ws1'),
+    [{ pattern: 'a@example.com', workspaces: ['ws1'], role: 'Collaborator' }]
+  );
+  t.deepEqual(
+    addInviteeToAllowlist(
+      [{ pattern: 'a@example.com', workspaces: ['ws1'], role: 'Admin' }],
+      'a@example.com',
+      'ws2'
+    ),
+    [{ pattern: 'a@example.com', workspaces: ['ws1', 'ws2'], role: 'Admin' }]
+  );
+});
+
+test('inviting twice is a no-op and the input is never mutated', t => {
+  const entries = [
+    'drone.test',
+    { pattern: 'a@example.com', workspaces: ['ws1'] },
+  ];
+  const snapshot = JSON.stringify(entries);
+  t.is(addInviteeToAllowlist(entries, 'a@example.com', 'ws1'), null);
+  addInviteeToAllowlist(entries, 'a@example.com', 'ws2');
+  t.is(JSON.stringify(entries), snapshot);
 });
