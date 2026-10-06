@@ -4,6 +4,7 @@ import { Module } from '@nestjs/common';
 
 import { DocStorageModule } from '../../core/doc';
 import { PermissionModule } from '../../core/permission';
+import { DocTranslationController } from './controller';
 import { TranslateFeatureGuard, TranslateFeatureService } from './feature';
 import { DocTranslationJob } from './job';
 import { TranslationProvider } from './provider';
@@ -20,6 +21,7 @@ import { DocTranslationWorker } from './worker';
     DocTranslationJob,
     DocTranslationResolver,
   ],
+  controllers: [DocTranslationController],
 })
 export class TranslateModule {}
 
