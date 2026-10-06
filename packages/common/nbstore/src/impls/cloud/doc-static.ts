@@ -11,6 +11,8 @@ import { HttpConnection } from './http';
 interface CloudDocStorageOptions extends DocStorageOptions {
   serverBaseUrl: string;
   publicRootDocId?: string;
+  /** Serve this translation of the shared doc instead of the original. */
+  publicDocLang?: string;
 }
 
 const isShareModePrivateSystemDoc = (docId: string) =>
@@ -58,12 +60,15 @@ export class StaticCloudDocStorage extends DocStorageBase<CloudDocStorageOptions
         return null;
       }
 
+      const { publicRootDocId, publicDocLang } = this.options;
       const path =
-        docId === this.spaceId && this.options.publicRootDocId
-          ? `/api/workspaces/${this.spaceId}/public-docs/${this.options.publicRootDocId}/root-doc`
-          : this.options.publicRootDocId
-            ? `/api/workspaces/${this.spaceId}/public-docs/${docId}`
-            : `/api/workspaces/${this.spaceId}/docs/${docId}`;
+        docId === this.spaceId && publicRootDocId
+          ? `/api/workspaces/${this.spaceId}/public-docs/${publicRootDocId}/root-doc`
+          : docId === publicRootDocId && publicDocLang
+            ? `/api/workspaces/${this.spaceId}/public-docs/${docId}/translations/${encodeURIComponent(publicDocLang)}`
+            : publicRootDocId
+              ? `/api/workspaces/${this.spaceId}/public-docs/${docId}`
+              : `/api/workspaces/${this.spaceId}/docs/${docId}`;
       const arrayBuffer = await this.connection.fetchArrayBuffer(path, {
         priority: 'high',
         headers: {
