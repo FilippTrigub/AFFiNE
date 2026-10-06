@@ -894,6 +894,27 @@ enum DocRole {
   Reader
 }
 
+enum DocTranslationStatus {
+  failed
+  pending
+  ready
+  running
+}
+
+type DocTranslationType {
+  error: String
+  lang: String!
+
+  """The source doc changed after this translation"""
+  outOfDate: Boolean!
+  sourceLang: String!
+
+  """Source revision the served translation was made from"""
+  sourceTimestamp: DateTime
+  status: DocTranslationStatus!
+  title: String
+}
+
 type DocType {
   """Doc page analytics in a time window"""
   analytics(input: DocPageAnalyticsInput): DocPageAnalytics!
@@ -1661,6 +1682,9 @@ type Mutation {
   readNotification(id: String!): Boolean!
   recoverDoc(guid: String!, timestamp: DateTime!, workspaceId: String!): DateTime!
 
+  """Translate every language of a published doc again."""
+  refreshDocTranslations(docId: String!, workspaceId: String!): [DocTranslationType!]!
+
   """Refresh current user subscriptions and return latest."""
   refreshUserSubscriptions: [SubscriptionType!]!
   releaseDeletedBlobs(workspaceId: String!): Boolean!
@@ -1698,6 +1722,11 @@ type Mutation {
   sendVerifyChangeEmail(callbackUrl: String!, email: String!, token: String!): Boolean!
   sendVerifyEmail(callbackUrl: String!): Boolean!
   setBlob(blob: Upload!, workspaceId: String!): String!
+
+  """
+  Choose the languages a published doc is translated into. Languages left out are deleted.
+  """
+  setDocTranslations(docId: String!, languages: [String!]!, sourceLang: String!, workspaceId: String!): [DocTranslationType!]!
   settleTranscriptTask(taskId: String!, workspaceId: String!): TranscriptionResultType
   submitTranscriptTask(blob: Upload, blobId: String!, blobs: [Upload!], input: SubmitAudioTranscriptionInput, workspaceId: String!): TranscriptionResultType
   unlinkCalendarAccount(accountId: String!): Boolean!
@@ -1987,6 +2016,7 @@ type Query {
 
   """Get current user"""
   currentUser: UserType
+  docTranslations(docId: String!, workspaceId: String!): [DocTranslationType!]!
   error(name: ErrorNames!): ErrorDataUnion!
 
   """get workspace invitation info"""
