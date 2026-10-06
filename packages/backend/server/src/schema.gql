@@ -1036,6 +1036,7 @@ enum ErrorNames {
   INVALID_RUNTIME_CONFIG_TYPE
   INVALID_SEARCH_PROVIDER_REQUEST
   INVALID_SUBSCRIPTION_PARAMETERS
+  INVALID_WORKSPACE_DEFAULT_DOC_ROLE
   INVITATION_ACCOUNT_MISMATCH
   LICENSE_EXPIRED
   LICENSE_NOT_FOUND
@@ -1609,7 +1610,6 @@ type Mutation {
 
   """Create a new workspace"""
   createWorkspace(init: Upload): WorkspaceType!
-
   createWorkspaceAgentMcpCredential(input: CreateWorkspaceAgentMcpCredentialInput!): RevealedMcpCredentialType!
   createWorkspaceByokLocalLease(input: CreateWorkspaceByokLocalLeaseInput!): CreateWorkspaceByokLocalLeaseResultType!
   createWorkspaceByokProfile(input: CreateWorkspaceByokProfileInput!): WorkspaceByokProfileType!
@@ -2692,14 +2692,6 @@ type VersionRejectedDataType {
   version: String!
 }
 
-input WorkspaceByokCapabilityInput {
-  attachmentKinds: [ByokAttachmentKind!]!
-  attachmentSources: [ByokAttachmentSource!]!
-  features: [ByokModelFeature!]!
-  input: [ByokModelInput!]!
-  output: [ByokModelOutput!]!
-}
-
 type WorkspaceAgentDocGrantType {
   docId: String!
   role: DocRole!
@@ -2709,6 +2701,14 @@ type WorkspaceAgentType {
   email: String!
   id: ID!
   name: String!
+}
+
+input WorkspaceByokCapabilityInput {
+  attachmentKinds: [ByokAttachmentKind!]!
+  attachmentSources: [ByokAttachmentSource!]!
+  features: [ByokModelFeature!]!
+  input: [ByokModelInput!]!
+  output: [ByokModelOutput!]!
 }
 
 type WorkspaceByokCapabilityType {
