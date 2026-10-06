@@ -382,23 +382,6 @@
       "env": "AFFINE_MCP_ENABLED"
     }
   },
-  "translate": {
-    "enabled": {
-      "type": "Boolean",
-      "desc": "Let members publish machine translations of public docs.",
-      "env": "AFFINE_TRANSLATE_ENABLED"
-    },
-    "gemini.apiKey": {
-      "type": "String",
-      "desc": "Google Gemini API key used to translate published docs.",
-      "env": "AFFINE_TRANSLATE_GEMINI_API_KEY"
-    },
-    "gemini.model": {
-      "type": "String",
-      "desc": "Gemini model id used for translation.",
-      "env": "AFFINE_TRANSLATE_GEMINI_MODEL"
-    }
-  },
   "oauth": {
     "providers.google": {
       "type": "Object",
@@ -439,6 +422,23 @@
       "type": "Object",
       "desc": "RevenueCat integration configs",
       "link": "https://www.revenuecat.com/docs/"
+    }
+  },
+  "translate": {
+    "enabled": {
+      "type": "Boolean",
+      "desc": "Let members publish machine translations of public docs.",
+      "env": "AFFINE_TRANSLATE_ENABLED"
+    },
+    "gemini.apiKey": {
+      "type": "String",
+      "desc": "Google Gemini API key used to translate published docs.",
+      "env": "AFFINE_TRANSLATE_GEMINI_API_KEY"
+    },
+    "gemini.model": {
+      "type": "String",
+      "desc": "Gemini model id used for translation.",
+      "env": "AFFINE_TRANSLATE_GEMINI_MODEL"
     }
   },
   "worker": {

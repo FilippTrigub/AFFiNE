@@ -1433,27 +1433,6 @@
         }
       }
     },
-    "translate": {
-      "type": "object",
-      "description": "Configuration for translate module",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "description": "Let members publish machine translations of public docs.\n@default false\n@environment `AFFINE_TRANSLATE_ENABLED`",
-          "default": false
-        },
-        "gemini.apiKey": {
-          "type": "string",
-          "description": "Google Gemini API key used to translate published docs.\n@default \"\"\n@environment `AFFINE_TRANSLATE_GEMINI_API_KEY`",
-          "default": ""
-        },
-        "gemini.model": {
-          "type": "string",
-          "description": "Gemini model id used for translation.\n@default \"gemini-3.5-flash-lite\"\n@environment `AFFINE_TRANSLATE_GEMINI_MODEL`",
-          "default": "gemini-3.5-flash-lite"
-        }
-      }
-    },
     "oauth": {
       "type": "object",
       "description": "Configuration for oauth module",
@@ -1582,6 +1561,27 @@
             "environment": "production",
             "productMap": {}
           }
+        }
+      }
+    },
+    "translate": {
+      "type": "object",
+      "description": "Configuration for translate module",
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Let members publish machine translations of public docs.\n@default false\n@environment `AFFINE_TRANSLATE_ENABLED`",
+          "default": false
+        },
+        "gemini.apiKey": {
+          "type": "string",
+          "description": "Google Gemini API key used to translate published docs.\n@default \"\"\n@environment `AFFINE_TRANSLATE_GEMINI_API_KEY`",
+          "default": ""
+        },
+        "gemini.model": {
+          "type": "string",
+          "description": "Gemini model id used for translation.\n@default \"gemini-3.5-flash-lite\"\n@environment `AFFINE_TRANSLATE_GEMINI_MODEL`",
+          "default": "gemini-3.5-flash-lite"
         }
       }
     },
