@@ -7741,6 +7741,20 @@ export function useAFFiNEI18N(): {
       */
     ["com.affine.share-page.header.import-template"](): string;
     /**
+      * `Language`
+      */
+    ["com.affine.share-page.header.language"](): string;
+    /**
+      * `{{language}} (original)`
+      */
+    ["com.affine.share-page.header.language.original"](options: {
+        readonly language: string;
+    }): string;
+    /**
+      * `Original`
+      */
+    ["com.affine.share-page.header.language.original-unknown"](): string;
+    /**
       * `Login or Sign Up`
       */
     ["com.affine.share-page.header.login"](): string;

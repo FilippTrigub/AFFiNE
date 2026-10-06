@@ -13,7 +13,9 @@ import { afterEach, describe, expect, test, vi } from 'vitest';
 import { SharePage } from '../desktop/pages/workspace/share/share-page';
 import {
   fetchSharedPublishMode,
+  fetchSharedTranslations,
   getResolvedPublishMode,
+  getSearchWithLang,
   getSearchWithMode,
   isSharePagePermissionError,
   isSharePageTimeoutError,
@@ -129,6 +131,60 @@ describe('fetchSharedPublishMode', () => {
   });
 });
 
+describe('fetchSharedTranslations', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  test('reads the languages a reader can switch to', async () => {
+    const fetchMock = vi
+      .spyOn(globalThis, 'fetch')
+      .mockResolvedValueOnce(
+        Response.json({ sourceLang: 'en', languages: ['fr', 'de'] })
+      );
+
+    await expect(
+      fetchSharedTranslations({
+        serverBaseUrl: 'https://app.affine.pro',
+        workspaceId: 'workspace-id',
+        docId: 'doc-id',
+      })
+    ).resolves.toEqual({ sourceLang: 'en', languages: ['fr', 'de'] });
+    expect(fetchMock).toHaveBeenCalledWith(
+      new URL(
+        '/api/workspaces/workspace-id/public-docs/doc-id/translations',
+        'https://app.affine.pro'
+      ),
+      expect.anything()
+    );
+  });
+
+  test.each([
+    ['an error status', new Response(null, { status: 404 })],
+    ['a malformed body', Response.json({ languages: 'fr' })],
+  ])('offers nothing on %s', async (_case, response) => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(response);
+    await expect(
+      fetchSharedTranslations({
+        serverBaseUrl: 'https://app.affine.pro',
+        workspaceId: 'workspace-id',
+        docId: 'doc-id',
+      })
+    ).resolves.toEqual({ sourceLang: null, languages: [] });
+  });
+});
+
+describe('getSearchWithLang', () => {
+  test.each([
+    ['', 'fr', '?lang=fr'],
+    ['?mode=page', 'de', '?mode=page&lang=de'],
+    ['?mode=page&lang=de', null, '?mode=page'],
+    ['?lang=de', null, ''],
+  ] as const)('projects %s with lang %s', (search, lang, expected) => {
+    expect(getSearchWithLang(search, lang)).toBe(expected);
+  });
+});
+
 describe('getSearchWithMode', () => {
   test.each([
     ['', 'edgeless', '?mode=edgeless'],
@@ -159,7 +215,61 @@ describe('share page error helpers', () => {
 describe('share workspace lifecycle', () => {
   afterEach(() => {
     sharePageMocks.services.clear();
+    vi.restoreAllMocks();
   });
+
+  test.each([
+    ['fr', 'fr'],
+    ['it', undefined],
+  ])(
+    '?lang=%s opens the shared doc with translation %s',
+    async (lang, expected) => {
+      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+        Response.json({ sourceLang: 'en', languages: ['fr'] })
+      );
+      const open = vi.fn(
+        (_options: unknown, _engineOptions?: WorkerInitOptions) => ({
+          workspace: {
+            id: 'workspace-id',
+            scope: {
+              get: (token: { name: string }) =>
+                token.name === 'WorkbenchService'
+                  ? { workbench: { updateBasename: vi.fn() } }
+                  : undefined,
+            },
+            // Never loads: only the options passed to open matter here.
+            engine: { doc: { waitForDocLoaded: () => new Promise(() => {}) } },
+          },
+          dispose: vi.fn(),
+        })
+      );
+      sharePageMocks.services.set('ServerService', {
+        server: { baseUrl: 'https://app.affine.pro' },
+      });
+      sharePageMocks.services.set('WorkspacesService', { open });
+
+      const view = render(
+        createElement(
+          MemoryRouter,
+          {
+            initialEntries: [
+              `/share/workspace-id/doc-id?mode=page&lang=${lang}`,
+            ],
+          },
+          createElement(SharePage, {
+            workspaceId: 'workspace-id',
+            docId: 'doc-id',
+          })
+        )
+      );
+      await waitFor(() => expect(open).toHaveBeenCalledTimes(1));
+      const docOptions = open.mock.calls[0]?.[1]?.local.doc?.opts as {
+        publicDocLang?: string;
+      };
+      expect(docOptions.publicDocLang).toBe(expected);
+      view.unmount();
+    }
+  );
 
   test.each(['workspace-id', 'doc-id'])(
     'aborts %s loading before disposing after unmount',

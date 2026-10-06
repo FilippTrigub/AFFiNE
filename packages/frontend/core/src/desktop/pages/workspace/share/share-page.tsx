@@ -40,9 +40,12 @@ import { ShareHeader } from './share-header';
 import * as styles from './share-page.css';
 import {
   fetchSharedPublishMode,
+  fetchSharedTranslations,
   getResolvedPublishMode,
   isSharePagePermissionError,
   isSharePageTimeoutError,
+  NO_TRANSLATIONS,
+  type SharedTranslations,
 } from './share-page.utils';
 import { useSharedModeQuerySync } from './use-shared-mode-query-sync';
 
@@ -79,42 +82,50 @@ export const SharePage = ({
 }) => {
   const location = useLocation();
 
-  const { mode, selector, isTemplate, templateName, templateSnapshotUrl } =
-    useMemo(() => {
-      const searchParams = new URLSearchParams(location.search);
-      const queryStringMode = searchParams.get('mode') as DocMode | null;
-      const blockIds = searchParams
-        .get('blockIds')
-        ?.split(',')
-        .filter(v => v.length);
-      const elementIds = searchParams
-        .get('elementIds')
-        ?.split(',')
-        .filter(v => v.length);
+  const {
+    mode,
+    lang,
+    selector,
+    isTemplate,
+    templateName,
+    templateSnapshotUrl,
+  } = useMemo(() => {
+    const searchParams = new URLSearchParams(location.search);
+    const queryStringMode = searchParams.get('mode') as DocMode | null;
+    const blockIds = searchParams
+      .get('blockIds')
+      ?.split(',')
+      .filter(v => v.length);
+    const elementIds = searchParams
+      .get('elementIds')
+      ?.split(',')
+      .filter(v => v.length);
 
-      return {
-        mode:
-          queryStringMode && DocModes.includes(queryStringMode)
-            ? queryStringMode
-            : null,
-        selector: {
-          blockIds,
-          elementIds,
-          refreshKey: searchParams.get('refreshKey') || undefined,
-        },
-        isTemplate: searchParams.has('isTemplate'),
-        templateName: searchParams.get('templateName') || '',
-        templateSnapshotUrl: searchParams.get('snapshotUrl') || '',
-      };
-    }, [location.search]);
+    return {
+      mode:
+        queryStringMode && DocModes.includes(queryStringMode)
+          ? queryStringMode
+          : null,
+      lang: searchParams.get('lang'),
+      selector: {
+        blockIds,
+        elementIds,
+        refreshKey: searchParams.get('refreshKey') || undefined,
+      },
+      isTemplate: searchParams.has('isTemplate'),
+      templateName: searchParams.get('templateName') || '',
+      templateSnapshotUrl: searchParams.get('snapshotUrl') || '',
+    };
+  }, [location.search]);
 
   return (
     <AppContainer>
       <SharePageInner
         workspaceId={workspaceId}
         docId={docId}
-        key={workspaceId + ':' + docId}
+        key={workspaceId + ':' + docId + ':' + (lang ?? '')}
         publishMode={mode ?? undefined}
+        lang={lang}
         selector={selector}
         isTemplate={isTemplate}
         templateName={templateName}
@@ -128,6 +139,7 @@ const SharePageInner = ({
   workspaceId,
   docId,
   publishMode,
+  lang,
   selector,
   isTemplate,
   templateName,
@@ -136,6 +148,7 @@ const SharePageInner = ({
   workspaceId: string;
   docId: string;
   publishMode?: DocMode;
+  lang: string | null;
   selector?: EditorSelector;
   isTemplate?: boolean;
   templateName?: string;
@@ -153,12 +166,23 @@ const SharePageInner = ({
   >(() => (publishMode === undefined ? undefined : null));
   const [editorContainer, setActiveBlocksuiteEditor] =
     useActiveBlocksuiteEditor();
-  const resolvedPublishMode =
+  const [translations, setTranslations] = useState<
+    SharedTranslations | undefined
+  >(undefined);
+  // A requested language counts only once the server confirms it exists;
+  // until then nothing opens, so the original never flashes first.
+  const activeLang =
+    lang && translations?.languages.includes(lang) ? lang : null;
+  const translationsSettled = !lang || translations !== undefined;
+  const sourcePublishMode =
     publishMode !== undefined
       ? publishMode
       : fetchedPublishMode === undefined
         ? null
         : getResolvedPublishMode(null, fetchedPublishMode);
+  // A translation is always a page.
+  const resolvedPublishMode =
+    sourcePublishMode && activeLang ? 'page' : sourcePublishMode;
   const currentPublishMode = useSharedModeQuerySync({
     editor,
     resolvedPublishMode,
@@ -197,7 +221,26 @@ const SharePageInner = ({
   }, [docId, publishMode, serverService.server.baseUrl, workspaceId]);
 
   useEffect(() => {
-    if (resolvedPublishMode === null) return;
+    const abortController = new AbortController();
+    fetchSharedTranslations({
+      serverBaseUrl: serverService.server.baseUrl,
+      workspaceId,
+      docId,
+      signal: abortController.signal,
+    })
+      .catch(() => NO_TRANSLATIONS)
+      .then(result => {
+        if (!abortController.signal.aborted) setTranslations(result);
+      })
+      .catch(console.error);
+
+    return () => {
+      abortController.abort();
+    };
+  }, [docId, serverService.server.baseUrl, workspaceId]);
+
+  useEffect(() => {
+    if (resolvedPublishMode === null || !translationsSettled) return;
 
     const { workspace: sharedWorkspace, dispose } = workspacesService.open(
       {
@@ -214,6 +257,7 @@ const SharePageInner = ({
             opts: {
               id: workspaceId,
               publicRootDocId: docId,
+              publicDocLang: activeLang ?? undefined,
               serverBaseUrl: serverService.server.baseUrl,
             },
           },
@@ -307,6 +351,8 @@ const SharePageInner = ({
   }, [
     docId,
     resolvedPublishMode,
+    translationsSettled,
+    activeLang,
     selector,
     workspaceId,
     workspacesService,
@@ -385,6 +431,8 @@ const SharePageInner = ({
               <ShareHeader
                 pageId={page.id}
                 publishMode={currentPublishMode}
+                translations={translations ?? NO_TRANSLATIONS}
+                activeLang={activeLang}
                 isTemplate={isTemplate}
                 templateName={templateName}
                 snapshotUrl={templateSnapshotUrl}

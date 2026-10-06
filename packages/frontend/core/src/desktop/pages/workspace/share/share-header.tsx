@@ -4,15 +4,21 @@ import ShareHeaderRightItem from '@affine/core/components/cloud/share-header-rig
 import type { DocMode } from '@blocksuite/affine/model';
 
 import * as styles from './share-header.css';
+import { ShareLanguageSwitch } from './share-language-switch';
+import type { SharedTranslations } from './share-page.utils';
 
 export function ShareHeader({
   publishMode,
+  translations,
+  activeLang,
   isTemplate,
   templateName,
   snapshotUrl,
 }: {
   pageId: string;
   publishMode: DocMode;
+  translations: SharedTranslations;
+  activeLang: string | null;
   isTemplate?: boolean;
   templateName?: string;
   snapshotUrl?: string;
@@ -22,6 +28,10 @@ export function ShareHeader({
       <EditorModeSwitch />
       <BlocksuiteHeaderTitle />
       <div className={styles.spacer} />
+      <ShareLanguageSwitch
+        translations={translations}
+        activeLang={activeLang}
+      />
       <ShareHeaderRightItem
         publishMode={publishMode}
         isTemplate={isTemplate}
