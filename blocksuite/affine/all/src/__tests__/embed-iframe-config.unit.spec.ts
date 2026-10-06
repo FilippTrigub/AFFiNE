@@ -7,6 +7,7 @@ import { googleDocsConfig } from '../../../blocks/embed/src/embed-iframe-block/c
 import { googleDriveConfig } from '../../../blocks/embed/src/embed-iframe-block/configs/providers/google-drive.js';
 import { miroConfig } from '../../../blocks/embed/src/embed-iframe-block/configs/providers/miro.js';
 import { spotifyConfig } from '../../../blocks/embed/src/embed-iframe-block/configs/providers/spotify.js';
+import { youtubeConfig } from '../../../blocks/embed/src/embed-iframe-block/configs/providers/youtube.js';
 
 describe('embed iframe provider config', () => {
   test('validates final iframe URLs from oEmbed providers', () => {
@@ -70,6 +71,48 @@ describe('embed iframe provider config', () => {
     expect(
       excalidrawConfig.validateIframeUrl?.('https://excalidraw.com/#room-id')
     ).toBe(true);
+  });
+
+  test('youtube rewrites page URLs to the frameable embed URL', () => {
+    const embed = 'https://www.youtube.com/embed/dQw4w9WgXcQ';
+    for (const url of [
+      'https://www.youtube.com/watch?v=dQw4w9WgXcQ',
+      'https://youtube.com/watch?v=dQw4w9WgXcQ&list=PL123',
+      'https://m.youtube.com/watch?v=dQw4w9WgXcQ',
+      'https://youtu.be/dQw4w9WgXcQ',
+      'https://www.youtube.com/shorts/dQw4w9WgXcQ',
+      'https://www.youtube.com/live/dQw4w9WgXcQ',
+      'https://www.youtube.com/embed/dQw4w9WgXcQ',
+    ]) {
+      expect(youtubeConfig.match(url)).toBe(true);
+      expect(youtubeConfig.buildOEmbedUrl(url)).toBe(embed);
+    }
+    expect(
+      youtubeConfig.buildOEmbedUrl('https://youtu.be/dQw4w9WgXcQ?t=90')
+    ).toBe(`${embed}?start=90`);
+  });
+
+  test('youtube does not match non-video URLs and validates embed shape', () => {
+    for (const url of [
+      'https://www.youtube.com/',
+      'https://www.youtube.com/playlist?list=PL123',
+      'https://www.youtube.com/@channel',
+      'https://www.youtube.com/watch?v=short',
+      'https://evil.example/watch?v=dQw4w9WgXcQ',
+      'http://www.youtube.com/watch?v=dQw4w9WgXcQ',
+    ]) {
+      expect(youtubeConfig.match(url)).toBe(false);
+    }
+    expect(
+      youtubeConfig.validateIframeUrl?.(
+        'https://www.youtube.com/embed/dQw4w9WgXcQ'
+      )
+    ).toBe(true);
+    expect(
+      youtubeConfig.validateIframeUrl?.(
+        'https://www.youtube.com/watch?v=dQw4w9WgXcQ'
+      )
+    ).toBe(false);
   });
 
   test('generic iframe validation excludes affine and non-https URLs', () => {
