@@ -41,8 +41,10 @@ export const topLevelRoutes = [
       },
       {
         path: '/share/:workspaceId/:pageId',
-        loader: ({ params }) => {
-          return redirect(`/workspace/${params.workspaceId}/${params.pageId}`);
+        loader: ({ params, request }) => {
+          return redirect(
+            `/workspace/${params.workspaceId}/${params.pageId}${new URL(request.url).search}`
+          );
         },
       },
       {

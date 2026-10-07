@@ -50,9 +50,10 @@ export const topLevelRoutes = [
       },
       {
         path: SHARE_ROUTE_PATH,
-        loader: ({ params }) => {
+        loader: ({ params, request }) => {
           return redirect(
-            getWorkspaceDocPath(params.workspaceId ?? '', params.pageId ?? '')
+            getWorkspaceDocPath(params.workspaceId ?? '', params.pageId ?? '') +
+              new URL(request.url).search
           );
         },
       },
