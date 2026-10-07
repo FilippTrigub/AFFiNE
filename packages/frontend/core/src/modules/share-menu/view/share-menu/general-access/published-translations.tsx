@@ -19,6 +19,7 @@ import { useLiveData, useService } from '@toeverything/infra';
 import { useEffect } from 'react';
 
 import * as styles from './published-translations.css';
+import * as shareStyles from './styles.css';
 
 /** How often the menu re-reads statuses while a translation runs. */
 const POLL_MS = 5000;
@@ -124,7 +125,9 @@ export const PublishedTranslations = () => {
         </Button>
       </div>
       <div className={styles.header}>
-        <span>{t['com.affine.share-menu.translations.source']()}</span>
+        <div className={shareStyles.labelStyle}>
+          {t['com.affine.share-menu.translations.source']()}
+        </div>
         <Menu
           contentOptions={{ align: 'end' }}
           items={TRANSLATION_LANGUAGES.map(lang => (
@@ -137,7 +140,13 @@ export const PublishedTranslations = () => {
             </MenuItem>
           ))}
         >
-          <MenuTrigger variant="plain">
+          <MenuTrigger
+            className={shareStyles.menuTriggerStyle}
+            variant="plain"
+            suffixClassName={shareStyles.suffixClassName}
+            contentStyle={{ width: '100%' }}
+            data-testid="share-menu-translations-source"
+          >
             {translationLanguageName(sourceLang)}
           </MenuTrigger>
         </Menu>
@@ -149,7 +158,10 @@ export const PublishedTranslations = () => {
             <div key={lang} className={styles.language}>
               <Checkbox
                 checked={selected.has(lang)}
+                name={`share-menu-translation-${lang}`}
                 label={translationLanguageName(lang)}
+                className={styles.checkbox}
+                labelClassName={styles.checkboxLabel}
                 onChange={(_event, checked) => toggle(lang, checked)}
                 data-testid={`share-menu-translation-${lang}`}
               />

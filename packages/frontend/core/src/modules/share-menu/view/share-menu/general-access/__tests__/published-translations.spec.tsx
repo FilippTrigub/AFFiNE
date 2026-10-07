@@ -81,6 +81,32 @@ describe('PublishedTranslations', () => {
     );
   });
 
+  test('clicking a language name ticks it', async () => {
+    const service = fakeService({
+      available: true,
+      rows: [{ lang: 'fr', sourceLang: 'en', status: 'ready' }],
+    });
+    render(<PublishedTranslations />);
+
+    fireEvent.click(screen.getByText('Deutsch'));
+
+    await waitFor(() =>
+      expect(service.setLanguages).toHaveBeenCalledWith('en', ['fr', 'de'])
+    );
+  });
+
+  test('the source picker names the source language', () => {
+    fakeService({
+      available: true,
+      rows: [{ lang: 'fr', sourceLang: 'en', status: 'ready' }],
+    });
+    render(<PublishedTranslations />);
+
+    expect(
+      screen.getByTestId('share-menu-translations-source').textContent
+    ).toContain('English');
+  });
+
   test('the source language is not offered as a target', () => {
     fakeService({
       available: true,

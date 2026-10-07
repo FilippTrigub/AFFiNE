@@ -36,6 +36,16 @@ export const language = style({
   fontSize: cssVar('fontSm'),
 });
 
+export const checkbox = style({
+  fontSize: '16px',
+  gap: '6px',
+});
+
+export const checkboxLabel = style({
+  fontSize: cssVar('fontSm'),
+  cursor: 'pointer',
+});
+
 export const status = style({
   fontSize: cssVar('fontXs'),
   color: cssVarV2('text/secondary'),
