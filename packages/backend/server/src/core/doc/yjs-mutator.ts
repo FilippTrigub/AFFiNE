@@ -14,6 +14,13 @@ export interface YjsMutationOptions {
    * table doc (e.g. `docProperties`), as `DocWriter` does.
    */
   permissionDocId?: string;
+  /**
+   * Skip the native permission check. Only for callers that authorised the
+   * actor themselves and build the change server-side (the MCP workspace agent
+   * filing docs into folders). Refused for the root doc, so root writes always
+   * keep `append_root_update`'s trash/delete validation.
+   */
+  trusted?: boolean;
 }
 
 export interface YjsMutationResult<T> {
@@ -83,7 +90,17 @@ export class WorkspaceYjsMutator {
     options: YjsMutationOptions
   ) {
     let timestamp: number;
-    if (docId === workspaceId) {
+    if (docId === workspaceId && options.trusted) {
+      throw new Error('Trusted writes to the workspace root doc are refused');
+    }
+    if (options.trusted) {
+      timestamp = await this.storage.pushDocUpdatesTrusted(
+        workspaceId,
+        docId,
+        [update],
+        options.editorId
+      );
+    } else if (docId === workspaceId) {
       const output = await this.runtime.executeDomainCommandV1({
         command: 'append_root_update',
         actorUserId: options.editorId,

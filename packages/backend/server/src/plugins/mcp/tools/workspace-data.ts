@@ -284,6 +284,23 @@ export async function mutateTable<T>(
   );
 }
 
+/**
+ * Change the sidebar folder tree. A workspace agent is not a member, so the
+ * native check on `db$<ws>$folders` would refuse it; its folder tools check
+ * what it may file themselves (see folders.ts), so its writes go trusted.
+ */
+export async function mutateFolders<T>(
+  ctx: McpToolContext,
+  fn: (doc: Y.Doc) => T
+) {
+  return await ctx.deps.yjs.mutate(
+    ctx.workspaceId,
+    workspaceTableDocId(ctx.workspaceId, 'folders'),
+    { editorId: ctx.userId, trusted: ctx.isAgent },
+    fn
+  );
+}
+
 /** Upsert one doc's `docProperties` row, authorized by `Doc.Update` on it. */
 export async function writeDocProperties(
   ctx: McpToolContext,

@@ -8,8 +8,8 @@ import {
   listPages,
   loadRoot,
   loadTable,
+  mutateFolders,
   mutateRoot,
-  mutateTable,
   resolveTags,
   writeDocProperties,
 } from './workspace-data';
@@ -67,11 +67,8 @@ export async function linkifyDoc(ctx: McpToolContext, docId: string) {
  * folder never leaves a half-configured document behind.
  */
 async function preflight(ctx: McpToolContext, options: CreateDocOptions) {
-  const wantsOrganize = !!options.tags?.length || !!options.folderId;
-  if (wantsOrganize && ctx.isAgent) {
-    throw new Error(
-      'Tags and folders are not available to workspace agent credentials'
-    );
+  if (options.tags?.length && ctx.isAgent) {
+    throw new Error('Tags are not available to workspace agent credentials');
   }
   let tagIds: string[] = [];
   if (options.tags?.length) {
@@ -106,11 +103,16 @@ export async function createDocument(
   const title = sanitizeName(options.title, 'Title');
   const { tagIds } = await preflight(ctx, options);
 
+  // An agent is not a workspace member, so the native `Workspace.CreateDoc`
+  // check would always refuse it. It was authorised when its credential was
+  // resolved (provider.ts: agent identity, READ_WRITE for write tools), and
+  // everything createDoc writes is server-built, so it writes trusted.
   const { docId } = await ctx.deps.writer.createDoc(
     ctx.workspaceId,
     title,
     stripLeadingTitle(options.markdown),
-    ctx.userId
+    ctx.userId,
+    { trusted: ctx.isAgent }
   );
   await ctx.grantAgentCreatedDoc(docId);
 
@@ -129,7 +131,7 @@ export async function createDocument(
   let folderLinkId: string | undefined;
   if (options.folderId) {
     const folderId = options.folderId;
-    ({ result: folderLinkId } = await mutateTable(ctx, 'folders', doc =>
+    ({ result: folderLinkId } = await mutateFolders(ctx, doc =>
       addFolderLink(doc, folderId, 'doc', docId)
     ));
   }

@@ -10,13 +10,17 @@ e2e.before(() => {
 });
 
 /** Tools that act on the whole workspace or need more than Editor. */
-const HUMAN_ONLY = [
+/** Folder tools: open to agents, which only handle links to granted docs. */
+const AGENT_FOLDER_TOOLS = [
   'list_folders',
   'create_folder',
   'rename_folder',
   'move_folder_item',
   'add_to_folder',
   'remove_from_folder',
+];
+
+const HUMAN_ONLY = [
   'list_tags',
   'create_tag',
   'update_tag',
@@ -85,6 +89,14 @@ e2e('agents never see humans-only tools', async t => {
     t.true(human.includes(name), `${name} is listed for humans`);
     t.false(agentTools.includes(name), `${name} is hidden from agents`);
   }
+  for (const name of AGENT_FOLDER_TOOLS) {
+    t.true(agentTools.includes(name), `${name} is listed for agents`);
+  }
+  // A read-only agent credential still cannot create anything.
+  const readOnly = await toolNames(agent.id, workspace.id, 'READ_ONLY');
+  t.false(readOnly.includes('create_document'));
+  t.false(readOnly.includes('create_folder'));
+  t.true(readOnly.includes('list_folders'));
 });
 
 e2e('an agent stays inside its grants', async t => {
@@ -142,7 +154,14 @@ e2e('an agent stays inside its grants', async t => {
     text: 'hi',
   });
 
-  // Organisation options are refused rather than silently ignored.
+  // Tags are refused rather than silently ignored, and an unknown folder
+  // fails before any doc exists.
+  const withTags = await callTool(agent.id, ws, 'create_document', {
+    title: 'Mine',
+    content: 'x',
+    tags: ['anything'],
+  });
+  t.true(withTags.isError);
   const withFolder = await callTool(agent.id, ws, 'create_document', {
     title: 'Mine',
     content: 'x',
@@ -163,13 +182,171 @@ e2e('an agent stays inside its grants', async t => {
     mode: 'edgeless',
   });
 
-  // Known limitation, pre-dating these tools: the native runtime refuses
-  // CreateDoc for an agent, which is deliberately not a workspace member.
-  const created = await callTool(agent.id, ws, 'create_document', {
-    title: 'Mine',
+  const listedAfter = await call(agent.id, ws, 'list_documents', {});
+  t.deepEqual(
+    listedAfter.documents.map((d: { id: string }) => d.id),
+    [granted.docId]
+  );
+});
+
+e2e('an agent creates documents and gets Editor on them', async t => {
+  const owner = await app.signup();
+  const workspace = await app.create(Mockers.Workspace, {
+    owner: { id: owner.id },
+    snapshot: true,
+  });
+  const ws = workspace.id;
+  const agent = await app.models.workspace.provisionAgent(ws);
+
+  const created = await call(agent.id, ws, 'create_document', {
+    title: 'Minutes',
+    content: 'First draft.',
+  });
+  t.truthy(created.docId);
+
+  // Registered in the workspace like any other doc: the owner sees it.
+  const ownerList = await call(owner.id, ws, 'list_documents', {});
+  t.true(
+    ownerList.documents.some((d: { id: string }) => d.id === created.docId)
+  );
+
+  // The agent holds Editor on what it created, and only that.
+  const grants = await app.models.docUser.findGrantsByUser(ws, agent.id);
+  t.deepEqual(
+    grants.map(grant => [grant.docId, grant.role]),
+    [[created.docId, DocRole.Editor]]
+  );
+
+  await call(agent.id, ws, 'update_document', {
+    docId: created.docId,
+    content: 'Second draft.',
+  });
+  const read = await call(agent.id, ws, 'read_document', {
+    docId: created.docId,
+  });
+  t.true(read.includes('Second draft.'));
+  const info = await call(agent.id, ws, 'get_document_info', {
+    docId: created.docId,
+  });
+  t.is(info.createdBy, agent.id);
+
+  // Duplicating its own doc goes through the same path.
+  const copy = await call(agent.id, ws, 'duplicate_document', {
+    docId: created.docId,
+  });
+  t.truthy(copy.docId);
+});
+
+e2e('an agent files only its granted docs into folders', async t => {
+  const owner = await app.signup();
+  const workspace = await app.create(Mockers.Workspace, {
+    owner: { id: owner.id },
+    snapshot: true,
+  });
+  const ws = workspace.id;
+  const agent = await app.models.workspace.provisionAgent(ws);
+
+  const hidden = await call(owner.id, ws, 'create_document', {
+    title: 'Hidden',
     content: 'x',
   });
-  t.true(created.isError);
+  const readable = await call(owner.id, ws, 'create_document', {
+    title: 'Readable',
+    content: 'x',
+  });
+  await app.models.docUser.set(ws, readable.docId, agent.id, DocRole.Reader);
+  const ownerFolder = await call(owner.id, ws, 'create_folder', {
+    name: 'Board',
+  });
+  const hiddenLink = await call(owner.id, ws, 'add_to_folder', {
+    folder_id: ownerFolder.folderId,
+    target_id: hidden.docId,
+  });
+
+  const events = await call(agent.id, ws, 'create_folder', { name: 'Events' });
+  const workshop = await call(agent.id, ws, 'create_folder', {
+    name: 'Workshop',
+    parent_id: events.folderId,
+  });
+  const mine = await call(agent.id, ws, 'create_document', {
+    title: 'Programme',
+    content: 'x',
+    folder_id: workshop.folderId,
+  });
+  await call(agent.id, ws, 'add_to_folder', {
+    folder_id: workshop.folderId,
+    target_id: readable.docId,
+  });
+
+  // Ungranted docs: cannot be filed, moved or unfiled, and are never listed.
+  t.true(
+    (
+      await callTool(agent.id, ws, 'add_to_folder', {
+        folder_id: workshop.folderId,
+        target_id: hidden.docId,
+      })
+    ).isError
+  );
+  t.true(
+    (
+      await callTool(agent.id, ws, 'move_folder_item', {
+        item_id: hiddenLink.linkId,
+        parent_id: workshop.folderId,
+      })
+    ).isError
+  );
+  t.true(
+    (
+      await callTool(agent.id, ws, 'remove_from_folder', {
+        link_id: hiddenLink.linkId,
+      })
+    ).isError
+  );
+  const tree = await call(agent.id, ws, 'list_folders', {});
+  const text = JSON.stringify(tree);
+  t.false(text.includes(hidden.docId));
+  t.false(text.includes('Hidden'));
+  t.true(text.includes('Board'), 'folder names are visible');
+  t.true(text.includes(mine.docId));
+
+  // Folders themselves are free to rename and move.
+  await call(agent.id, ws, 'rename_folder', {
+    folder_id: workshop.folderId,
+    name: '2026-11 Workshop',
+  });
+  await call(agent.id, ws, 'move_folder_item', {
+    item_id: workshop.folderId,
+  });
+  type Tree = {
+    folders: Tree[];
+    items: { linkId: string; targetId: string }[];
+  };
+  const links = (nodes: Tree[]): Tree['items'] =>
+    nodes.flatMap(node => [...node.items, ...links(node.folders)]);
+  const mineLink = links(tree.folders).find(
+    item => item.targetId === mine.docId
+  );
+  t.truthy(mineLink, 'the new doc was filed at creation');
+  await call(agent.id, ws, 'remove_from_folder', {
+    link_id: mineLink!.linkId,
+  });
+
+  // The owner's view is intact: the hidden link is still filed.
+  const ownerTree = JSON.stringify(
+    await call(owner.id, ws, 'list_folders', {})
+  );
+  t.true(ownerTree.includes(hidden.docId));
+  t.true(ownerTree.includes('2026-11 Workshop'));
+});
+
+e2e('a non-member human still cannot create documents', async t => {
+  const { workspace } = await ownedWorkspace();
+  const outsider = await app.signup();
+  const result = await callTool(outsider.id, workspace.id, 'create_document', {
+    title: 'Nope',
+    content: 'x',
+  }).catch(() => ({ isError: true }));
+  t.true(result.isError);
 });
 
 e2e('a plain collaborator cannot define custom properties', async t => {

@@ -26,7 +26,7 @@ import {
   listTags,
   loadRoot,
   loadTable,
-  mutateTable,
+  mutateFolders,
 } from './workspace-data';
 
 /**
@@ -34,6 +34,11 @@ import {
  * `packages/frontend/core/src/modules/organize/stores/folder.ts`: only folders
  * sit at the root, links need a folder parent, and moves must not create
  * cycles. Deleting a folder is deliberately absent: it drops the whole subtree.
+ *
+ * Open to the workspace agent too. Folders carry no permissions, so it may
+ * create, rename and move any folder, but it only ever sees, files, moves or
+ * unfiles links to documents it holds a grant on, and never tag or collection
+ * links (those tools stay humans-only).
  */
 
 type FolderTree = {
@@ -56,9 +61,14 @@ function isDescendant(rows: FolderRow[], nodeId: string, ancestorId: string) {
 }
 
 export function buildFolderTools(ctx: McpToolContext): McpTool[] {
-  const assertOrganize = () => ctx.assertWorkspace('Workspace.CreateDoc');
+  const assertOrganize = async () => {
+    if (!ctx.isAgent) await ctx.assertWorkspace('Workspace.CreateDoc');
+  };
+  /** Whether the caller may see or handle this non-folder row. */
+  const mayHandleLink = (row: FolderRow) =>
+    !ctx.isAgent || (row.type === 'doc' && ctx.agentMayRead(row.data));
 
-  const listFolders = mcpTool('read', 'human', {
+  const listFolders = mcpTool('read', 'all', {
     name: 'list_folders',
     title: 'List Folders',
     description:
@@ -70,7 +80,9 @@ export function buildFolderTools(ctx: McpToolContext): McpTool[] {
       additionalProperties: false,
     },
     execute: async () => {
-      await ctx.assertWorkspace('Workspace.Organize.Read');
+      if (!ctx.isAgent) {
+        await ctx.assertWorkspace('Workspace.Organize.Read');
+      }
       const doc = await loadTable(ctx, 'folders');
       const rows = folderRows(doc).sort((a, b) =>
         a.index < b.index ? -1 : a.index > b.index ? 1 : 0
@@ -95,7 +107,10 @@ export function buildFolderTools(ctx: McpToolContext): McpTool[] {
             folders: build(folder.id),
             items: rows
               .filter(
-                row => row.parentId === folder.id && row.type !== 'folder'
+                row =>
+                  row.parentId === folder.id &&
+                  row.type !== 'folder' &&
+                  mayHandleLink(row)
               )
               .map(row => ({
                 linkId: row.id,
@@ -108,7 +123,7 @@ export function buildFolderTools(ctx: McpToolContext): McpTool[] {
     },
   });
 
-  const createFolder = mcpTool('write', 'human', {
+  const createFolder = mcpTool('write', 'all', {
     name: 'create_folder',
     title: 'Create Folder',
     description:
@@ -131,7 +146,7 @@ export function buildFolderTools(ctx: McpToolContext): McpTool[] {
         await assertOrganize();
         const folderName = sanitizeName(name, 'Folder name');
         const parentId = parent_id ?? null;
-        const { result } = await mutateTable(ctx, 'folders', doc => {
+        const { result } = await mutateFolders(ctx, doc => {
           const rows = folderRows(doc);
           if (parentId) {
             const parent = rows.find(row => row.id === parentId);
@@ -163,7 +178,7 @@ export function buildFolderTools(ctx: McpToolContext): McpTool[] {
     },
   });
 
-  const renameFolder = mcpTool('write', 'human', {
+  const renameFolder = mcpTool('write', 'all', {
     name: 'rename_folder',
     title: 'Rename Folder',
     description: 'Rename a sidebar folder.',
@@ -181,7 +196,7 @@ export function buildFolderTools(ctx: McpToolContext): McpTool[] {
       try {
         await assertOrganize();
         const folderName = sanitizeName(name, 'Folder name');
-        await mutateTable(ctx, 'folders', doc => {
+        await mutateFolders(ctx, doc => {
           const folder = folderRows(doc).find(row => row.id === folder_id);
           if (!folder || folder.type !== 'folder') {
             throw new Error(`Folder ${folder_id} not found`);
@@ -195,7 +210,7 @@ export function buildFolderTools(ctx: McpToolContext): McpTool[] {
     },
   });
 
-  const moveFolderItem = mcpTool('write', 'human', {
+  const moveFolderItem = mcpTool('write', 'all', {
     name: 'move_folder_item',
     title: 'Move Folder Item',
     description:
@@ -219,10 +234,12 @@ export function buildFolderTools(ctx: McpToolContext): McpTool[] {
       try {
         await assertOrganize();
         const parentId = parent_id ?? null;
-        await mutateTable(ctx, 'folders', doc => {
+        await mutateFolders(ctx, doc => {
           const rows = folderRows(doc);
           const node = rows.find(row => row.id === item_id);
-          if (!node) throw new Error(`Item ${item_id} not found`);
+          if (!node || (node.type !== 'folder' && !mayHandleLink(node))) {
+            throw new Error(`Item ${item_id} not found`);
+          }
           if (parentId) {
             if (parentId === item_id) {
               throw new Error('Cannot move a folder into itself');
@@ -255,7 +272,7 @@ export function buildFolderTools(ctx: McpToolContext): McpTool[] {
     },
   });
 
-  const addToFolder = mcpTool('write', 'human', {
+  const addToFolder = mcpTool('write', 'all', {
     name: 'add_to_folder',
     title: 'Add To Folder',
     description:
@@ -278,6 +295,11 @@ export function buildFolderTools(ctx: McpToolContext): McpTool[] {
     execute: async ({ folder_id, target_id, type = 'doc' }) => {
       try {
         await assertOrganize();
+        if (ctx.isAgent && type !== 'doc') {
+          return toolError(
+            'Workspace agents can only file documents into folders.'
+          );
+        }
         const root = await loadRoot(ctx);
         const exists =
           type === 'doc'
@@ -293,7 +315,7 @@ export function buildFolderTools(ctx: McpToolContext): McpTool[] {
         } else if (!exists) {
           return toolError(`${type} ${target_id} not found.`);
         }
-        const { result: linkId } = await mutateTable(ctx, 'folders', doc =>
+        const { result: linkId } = await mutateFolders(ctx, doc =>
           addFolderLink(doc, folder_id, type, target_id)
         );
         return toolJson({ success: true, linkId });
@@ -303,7 +325,7 @@ export function buildFolderTools(ctx: McpToolContext): McpTool[] {
     },
   });
 
-  const removeFromFolder = mcpTool('write', 'human', {
+  const removeFromFolder = mcpTool('write', 'all', {
     name: 'remove_from_folder',
     title: 'Remove From Folder',
     description:
@@ -318,9 +340,9 @@ export function buildFolderTools(ctx: McpToolContext): McpTool[] {
     execute: async ({ link_id }) => {
       try {
         await assertOrganize();
-        await mutateTable(ctx, 'folders', doc => {
+        await mutateFolders(ctx, doc => {
           const link = folderRows(doc).find(row => row.id === link_id);
-          if (!link || link.type === 'folder') {
+          if (!link || link.type === 'folder' || !mayHandleLink(link)) {
             throw new Error(`Link ${link_id} not found`);
           }
           softDeleteOrmRow(doc, link_id, 'id');

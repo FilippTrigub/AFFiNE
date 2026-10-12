@@ -130,15 +130,12 @@ export function buildDocumentInfoTools(ctx: McpToolContext): McpTool[] {
       );
       const meta = await deps.models.doc.getMeta(workspaceId, docId);
 
-      let folders: string[][] | undefined;
-      if (!ctx.isAgent) {
-        const doc = await loadTable(ctx, 'folders');
-        const rows = folderRows(doc);
-        doc.destroy();
-        folders = rows
-          .filter(row => row.type === 'doc' && row.data === docId)
-          .map(row => (row.parentId ? folderPath(rows, row.parentId) : []));
-      }
+      const folderDoc = await loadTable(ctx, 'folders');
+      const rows = folderRows(folderDoc);
+      folderDoc.destroy();
+      const folders = rows
+        .filter(row => row.type === 'doc' && row.data === docId)
+        .map(row => (row.parentId ? folderPath(rows, row.parentId) : []));
 
       return toolJson({
         id: docId,

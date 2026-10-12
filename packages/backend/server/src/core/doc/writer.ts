@@ -16,6 +16,18 @@ export interface CreateDocResult {
   docId: string;
 }
 
+export interface CreateDocOptions {
+  /**
+   * Skip the native permission check on every write `createDoc` makes. Only for
+   * callers that have already authorised the actor themselves; today that is
+   * the MCP workspace-agent path, whose agent is deliberately not a workspace
+   * member and so never passes the native `Workspace.CreateDoc` check. Safe
+   * because every update written here is built by the server from the title
+   * and markdown, never supplied by the caller as raw Yjs.
+   */
+  trusted?: boolean;
+}
+
 export interface UpdateDocResult {
   success: boolean;
 }
@@ -49,13 +61,15 @@ export class DocWriter {
    * @param title - The document title
    * @param markdown - The markdown content (body only)
    * @param editorId - Actor user ID
+   * @param options - See {@link CreateDocOptions}
    * @returns The created document ID
    */
   async createDoc(
     workspaceId: string,
     title: string,
     markdown: string,
-    editorId: string
+    editorId: string,
+    options: CreateDocOptions = {}
   ): Promise<CreateDocResult> {
     // Fetch workspace root doc first - reject if not found
     // The root doc (docId = workspaceId) contains meta.pages array
@@ -86,14 +100,15 @@ export class DocWriter {
     // Prepare root doc update to register the new document
     const rootDocUpdate = addDocToRootDoc(rootDocBin, docId, title);
 
+    const trusted = options.trusted ?? false;
+
     // Push both updates together - root doc first, then the new doc
-    const rootTimestamp = await this.storage.pushDocUpdates(
+    const rootTimestamp = await this.pushCreateUpdate(
       workspaceId,
       workspaceId,
-      [rootDocUpdate],
+      rootDocUpdate,
       editorId,
-      undefined,
-      'create_doc'
+      trusted
     );
     this.emitDocUpdatesPushed({
       spaceId: workspaceId,
@@ -103,13 +118,12 @@ export class DocWriter {
       editor: editorId,
     });
 
-    const docTimestamp = await this.storage.pushDocUpdates(
+    const docTimestamp = await this.pushCreateUpdate(
       workspaceId,
       docId,
-      [binary],
+      binary,
       editorId,
-      undefined,
-      'create_doc'
+      trusted
     );
     this.emitDocUpdatesPushed({
       spaceId: workspaceId,
@@ -126,7 +140,8 @@ export class DocWriter {
         createdBy: editorId,
         updatedBy: editorId,
       },
-      editorId
+      editorId,
+      trusted
     );
 
     this.logger.debug(
@@ -314,11 +329,36 @@ export class DocWriter {
     });
   }
 
+  private async pushCreateUpdate(
+    workspaceId: string,
+    docId: string,
+    update: Uint8Array,
+    editorId: string,
+    trusted: boolean
+  ) {
+    return trusted
+      ? await this.storage.pushDocUpdatesTrusted(
+          workspaceId,
+          docId,
+          [update],
+          editorId
+        )
+      : await this.storage.pushDocUpdates(
+          workspaceId,
+          docId,
+          [update],
+          editorId,
+          undefined,
+          'create_doc'
+        );
+  }
+
   private async updateDocProperties(
     workspaceId: string,
     docId: string,
     props: { createdBy?: string; updatedBy?: string },
-    editorId: string
+    editorId: string,
+    trusted = false
   ) {
     if (
       workspaceId === docId ||
@@ -354,15 +394,22 @@ export class DocWriter {
       return;
     }
 
-    const timestamp = await this.storage.pushDocUpdates(
-      workspaceId,
-      propertiesDocId,
-      [update],
-      editorId,
-      undefined,
-      'update_doc',
-      docId
-    );
+    const timestamp = trusted
+      ? await this.storage.pushDocUpdatesTrusted(
+          workspaceId,
+          propertiesDocId,
+          [update],
+          editorId
+        )
+      : await this.storage.pushDocUpdates(
+          workspaceId,
+          propertiesDocId,
+          [update],
+          editorId,
+          undefined,
+          'update_doc',
+          docId
+        );
     this.emitDocUpdatesPushed({
       spaceId: workspaceId,
       docId: propertiesDocId,
