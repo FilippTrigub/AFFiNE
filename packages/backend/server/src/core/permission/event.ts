@@ -47,6 +47,12 @@ export class EventsListener {
       );
       return;
     }
+    // A workspace agent is never a doc owner: its grants are set explicitly
+    // (Editor on what it creates, see the MCP plugin), and an implicit Owner
+    // row would also land on shared table docs it writes, like docProperties.
+    if (user.agentOfWorkspaceId) {
+      return;
+    }
 
     try {
       await this.models.docUser.setOwner(workspaceId, docId, editor);
