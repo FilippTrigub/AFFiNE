@@ -120,18 +120,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # All three targets must be built even though this fork only deploys
-        # arm64: packages/backend/native/index.js picks the binary with a static
-        # ternary of require() calls, so the bundler resolves every branch and
-        # fails if any .node file is missing. They build in parallel, so this
-        # costs little wall-clock; the image platform list below is the saving.
+        # Only arm64: the image is arm64-only (platforms below). The x64 and
+        # armv7 binaries are replaced by empty placeholders in build-server;
+        # see the comment there.
         targets:
-          - name: x86_64-unknown-linux-gnu
-            file: server-native.x64.node
           - name: aarch64-unknown-linux-gnu
             file: server-native.arm64.node
-          - name: armv7-unknown-linux-gnueabihf
-            file: server-native.armv7.node
 
     steps:
       - uses: actions/checkout@v7
@@ -194,6 +188,16 @@ jobs:
           pattern: server-native-*
           merge-multiple: true
           path: ./packages/backend/native
+      # packages/backend/native/index.js picks the binary with a static
+      # ternary of require() calls, so the bundler needs every .node file to
+      # exist. Each one becomes its own lazily evaluated module, and only the
+      # running arch's branch is ever required, so on the arm64 image the
+      # empty x64/armv7 placeholders are never loaded. This saves two Rust
+      # builds (~15-20 runner minutes each) per deploy.
+      - name: Placeholder binaries for unused targets
+        run: |
+          : > ./packages/backend/native/server-native.x64.node
+          : > ./packages/backend/native/server-native.armv7.node
       - name: List server-native files
         run: ls -alh ./packages/backend/native
       - name: Build Server
