@@ -31,7 +31,23 @@ export function blobKeyOf(data: Buffer) {
 export function buildBlobTools(ctx: McpToolContext): McpTool[] {
   const { userId, workspaceId, deps } = ctx;
 
-  const uploadImage = mcpTool('write', 'human', {
+  /**
+   * Who the storage reservation is checked and recorded against. A person must
+   * hold `Workspace.Blobs.Upload` themselves. An agent is not a workspace
+   * member, so the native check would always refuse it; it was authorised when
+   * its credential was resolved (provider.ts), so its upload is reserved as the
+   * workspace owner, whose plan the quota is charged to either way.
+   */
+  async function storageActor() {
+    if (!ctx.isAgent) {
+      await ctx.assertWorkspace('Workspace.Blobs.Upload');
+      return userId;
+    }
+    const owner = await deps.models.workspaceUser.getOwner(workspaceId);
+    return owner.id;
+  }
+
+  const uploadImage = mcpTool('write', 'all', {
     name: 'upload_image',
     title: 'Upload Image',
     description:
@@ -63,11 +79,11 @@ export function buildBlobTools(ctx: McpToolContext): McpTool[] {
         return toolError('Image is larger than 10 MB.');
       }
       try {
-        await ctx.assertWorkspace('Workspace.Blobs.Upload');
+        const uploaderId = await storageActor();
         const key = blobKeyOf(data);
         const reservation = await deps.runtime.reserveStorageQuotaV1({
           workspaceId,
-          userId,
+          userId: uploaderId,
           key,
           size: data.byteLength,
           mime: mime_type,
@@ -98,7 +114,7 @@ export function buildBlobTools(ctx: McpToolContext): McpTool[] {
             await deps.runtime
               .abortStorageReservationV1({
                 workspaceId,
-                userId,
+                userId: uploaderId,
                 key,
                 reservationId,
                 kind: 'blob',
@@ -108,7 +124,7 @@ export function buildBlobTools(ctx: McpToolContext): McpTool[] {
           }
           const finalized = await deps.runtime.finalizeStorageReservationV1({
             workspaceId,
-            userId,
+            userId: uploaderId,
             key,
             reservationId,
             kind: 'blob',

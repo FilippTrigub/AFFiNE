@@ -40,7 +40,6 @@ const HUMAN_ONLY = [
   'restore_document',
   'publish_document',
   'unpublish_document',
-  'upload_image',
 ];
 
 e2e('no tool can delete anything permanently', async t => {
@@ -235,6 +234,39 @@ e2e('an agent creates documents and gets Editor on them', async t => {
     docId: created.docId,
   });
   t.truthy(copy.docId);
+});
+
+e2e('an agent uploads an image and embeds it in its own doc', async t => {
+  const owner = await app.signup();
+  const workspace = await app.create(Mockers.Workspace, {
+    owner: { id: owner.id },
+    snapshot: true,
+  });
+  const ws = workspace.id;
+  const agent = await app.models.workspace.provisionAgent(ws);
+  t.true((await toolNames(agent.id, ws)).includes('upload_image'));
+  t.false(
+    (await toolNames(agent.id, ws, 'READ_ONLY')).includes('upload_image')
+  );
+
+  // 1x1 transparent PNG
+  const png =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  const uploaded = await call(agent.id, ws, 'upload_image', {
+    data_base64: png,
+    mime_type: 'image/png',
+  });
+  t.truthy(uploaded.key);
+  t.truthy(await app.models.blob.get(ws, uploaded.key));
+
+  const doc = await call(agent.id, ws, 'create_document', {
+    title: 'Imported',
+    content: `Before\n\n${uploaded.markdown}\n\nAfter`,
+  });
+  const body = await call(agent.id, ws, 'read_document', {
+    docId: doc.docId,
+  });
+  t.true(body.includes(`blob://${uploaded.key}`));
 });
 
 e2e('an agent files only its granted docs into folders', async t => {
