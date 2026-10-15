@@ -4,7 +4,7 @@ import type { RawBodyRequest } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
-import { raw } from 'express';
+import { json, raw } from 'express';
 import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.mjs';
 
 import {
@@ -46,6 +46,12 @@ export function configureBodyParsers(
         req.rawBody = buffer;
       },
     })
+  );
+  // The default JSON limit (100 KB) would refuse any MCP upload_image call for
+  // an image over ~75 KB; that tool accepts up to 10 MB, ~13.4 MB as base64.
+  app.use(
+    `${serverPrefix ? `/${serverPrefix}` : ''}/api/workspaces/:workspaceId/mcp`,
+    json({ limit: 16 * OneMB })
   );
   app.useBodyParser('raw', { limit: 100 * OneMB });
 }

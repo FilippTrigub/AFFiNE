@@ -76,6 +76,44 @@ for (const [serverPath, prefix] of [
   );
 }
 
+e2e(
+  'MCP requests may carry a full-size image, other JSON stays capped',
+  async t => {
+    const module = await Test.createTestingModule({}).compile();
+    const http = module.createNestApplication<NestExpressApplication>({
+      logger: false,
+    });
+    configureBodyParsers(http, '');
+    http.use((req: Request, res: Response) =>
+      res.json({ size: JSON.stringify(req.body).length })
+    );
+    await http.init();
+    await http.listen(0);
+    try {
+      // upload_image takes up to 10 MB, which is ~13.4 MB as base64.
+      const image = { data_base64: 'A'.repeat(14 * 1024 * 1024) };
+      const accepted = await request(http.getHttpServer())
+        .post('/api/workspaces/ws/mcp')
+        .send(image);
+      t.is(accepted.status, 200);
+      t.true(accepted.body.size > 14 * 1024 * 1024);
+
+      const tooLarge = await request(http.getHttpServer())
+        .post('/api/workspaces/ws/mcp')
+        .send({ data_base64: 'A'.repeat(17 * 1024 * 1024) });
+      t.is(tooLarge.status, 413);
+
+      const elsewhere = await request(http.getHttpServer())
+        .post('/graphql')
+        .send({ data: 'A'.repeat(1024 * 1024) });
+      // Nest's default parser still refuses it (this bare app reports 500).
+      t.true(elsewhere.status >= 400);
+    } finally {
+      await http.close();
+    }
+  }
+);
+
 e2e('should create workspace with owner', async t => {
   const user = await app.signup();
   const workspace = await app.create(Mockers.Workspace, {
