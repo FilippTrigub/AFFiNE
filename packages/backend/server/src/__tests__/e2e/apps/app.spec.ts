@@ -1,5 +1,6 @@
 import { getCurrentUserQuery } from '@affine/graphql';
 import type { RawBodyRequest } from '@nestjs/common';
+import { Body, Controller, HttpCode, Post } from '@nestjs/common';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import { Test } from '@nestjs/testing';
 import type { Request, Response } from 'express';
@@ -79,14 +80,23 @@ for (const [serverPath, prefix] of [
 e2e(
   'MCP requests may carry a full-size image, other JSON stays capped',
   async t => {
-    const module = await Test.createTestingModule({}).compile();
+    // A controller, not a bare middleware: Nest mounts its global parsers in
+    // init(), ahead of controller routes, which is what production relies on.
+    @Controller()
+    class EchoController {
+      @Post(['graphql', 'api/workspaces/:workspaceId/mcp'])
+      @HttpCode(200)
+      echo(@Body() body: unknown) {
+        return { size: JSON.stringify(body ?? null).length };
+      }
+    }
+    const module = await Test.createTestingModule({
+      controllers: [EchoController],
+    }).compile();
     const http = module.createNestApplication<NestExpressApplication>({
       logger: false,
     });
     configureBodyParsers(http, '');
-    http.use((req: Request, res: Response) =>
-      res.json({ size: JSON.stringify(req.body).length })
-    );
     await http.init();
     await http.listen(0);
     try {
@@ -102,6 +112,14 @@ e2e(
         .post('/api/workspaces/ws/mcp')
         .send({ data_base64: 'A'.repeat(17 * 1024 * 1024) });
       t.is(tooLarge.status, 413);
+
+      // Every other route must still get Nest's global JSON parser.
+      const small = { query: '{ serverConfig { version } }' };
+      const parsed = await request(http.getHttpServer())
+        .post('/graphql')
+        .send(small);
+      t.is(parsed.status, 200);
+      t.is(parsed.body.size, JSON.stringify(small).length);
 
       const elsewhere = await request(http.getHttpServer())
         .post('/graphql')

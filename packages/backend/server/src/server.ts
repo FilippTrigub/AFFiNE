@@ -4,6 +4,7 @@ import type { RawBodyRequest } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
 import type { NestExpressApplication } from '@nestjs/platform-express';
 import cookieParser from 'cookie-parser';
+import type { NextFunction, Request, Response } from 'express';
 import { json, raw } from 'express';
 import graphqlUploadExpress from 'graphql-upload/graphqlUploadExpress.mjs';
 
@@ -49,9 +50,14 @@ export function configureBodyParsers(
   );
   // The default JSON limit (100 KB) would refuse any MCP upload_image call for
   // an image over ~75 KB; that tool accepts up to 10 MB, ~13.4 MB as base64.
+  // The wrapper matters: Nest skips its global JSON parser if any router layer
+  // is named `jsonParser`, which would leave every other route without a body.
+  const mcpJson = json({ limit: 16 * OneMB });
   app.use(
     `${serverPrefix ? `/${serverPrefix}` : ''}/api/workspaces/:workspaceId/mcp`,
-    json({ limit: 16 * OneMB })
+    function mcpJsonParser(req: Request, res: Response, next: NextFunction) {
+      mcpJson(req, res, next);
+    }
   );
   app.useBodyParser('raw', { limit: 100 * OneMB });
 }
