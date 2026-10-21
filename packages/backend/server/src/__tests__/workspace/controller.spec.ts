@@ -7,6 +7,7 @@ import Sinon from 'sinon';
 import supertest from 'supertest';
 import { applyUpdate, Doc as YDoc, Map as YMap } from 'yjs';
 
+import { BlobNotFound } from '../../base';
 import { BackendRuntimeProvider } from '../../core/backend-runtime';
 import { PgWorkspaceDocStorageAdapter } from '../../core/doc';
 import { WorkspacesController } from '../../core/workspaces/controller';
@@ -108,22 +109,136 @@ test.after.always(async t => {
 });
 
 // blob
-test('source-less blob protocol is disabled for every client version', async t => {
-  const { app } = t.context;
-  const versions = [undefined, '0.26.0', '0.27.0-canary.1', '0.27.0'];
-  const results = [];
-  for (const version of versions) {
-    const request = app.GET('/api/workspaces/public/blobs/test');
-    if (version) request.set('x-affine-version', version);
-    const response = await request;
-    results.push({
-      version: version ?? null,
-      status: response.status,
-      name: response.body.name,
-      data: response.body.data,
-    });
-  }
-  t.snapshot(results);
+function legacyBlobController(runtime: Partial<BackendRuntimeProvider>) {
+  return new WorkspacesController(
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    runtime as BackendRuntimeProvider
+  );
+}
+
+function legacyBlobResponse() {
+  const body: Buffer[] = [];
+  const headers: Record<string, string> = {};
+  const response = Object.assign(new PassThrough(), {
+    setHeader(name: string, value: string | number) {
+      headers[name.toLowerCase()] = String(value);
+      return this;
+    },
+    getHeader(name: string) {
+      return headers[name.toLowerCase()];
+    },
+  });
+  response.on('data', chunk => body.push(Buffer.from(chunk)));
+  return { response, headers, body };
+}
+
+test('legacy blob route resolves the source from the readable manifest', async t => {
+  const source = {
+    type: 'currentDoc',
+    workspaceId: 'workspace',
+    docId: 'page',
+  };
+  const getReadableWorkspaceBlobManifestV1 = Sinon.stub();
+  getReadableWorkspaceBlobManifestV1.onFirstCall().resolves({
+    version: 1,
+    entries: [{ key: 'other', mime: 'image/png', size: 1, source }],
+    nextCursor: 'page-2',
+  });
+  getReadableWorkspaceBlobManifestV1.onSecondCall().resolves({
+    version: 1,
+    entries: [{ key: 'blob-key', mime: 'image/png', size: 3, source }],
+  });
+  const openBlobV1 = Sinon.stub().resolves({
+    streamId: 'legacy-stream',
+    mime: 'image/png',
+    size: 3,
+    lastModifiedMs: Date.UTC(2026, 7, 30),
+  });
+  const closeBlobStreamV1 = Sinon.stub().resolves();
+  const controller = legacyBlobController({
+    getReadableWorkspaceBlobManifestV1,
+    openBlobV1,
+    readBlobStreamChunkV1: Sinon.stub().resolves({
+      body: Buffer.from('png'),
+      done: true,
+    }),
+    closeBlobStreamV1,
+  });
+  const { response, headers, body } = legacyBlobResponse();
+
+  await controller.blob(
+    { ...t.context.u1, id: 'actor' } as never,
+    'workspace',
+    'blob-key',
+    response as never
+  );
+
+  t.deepEqual(
+    getReadableWorkspaceBlobManifestV1.args.map(([input]) => input),
+    [
+      { actorUserId: 'actor', workspaceId: 'workspace', limit: 512 },
+      {
+        actorUserId: 'actor',
+        workspaceId: 'workspace',
+        cursor: 'page-2',
+        limit: 512,
+      },
+    ]
+  );
+  t.deepEqual(openBlobV1.firstCall.args, ['actor', source, 'blob-key']);
+  t.is(headers['content-type'], 'image/png');
+  t.is(Buffer.concat(body).toString(), 'png');
+  t.true(closeBlobStreamV1.calledOnceWithExactly('legacy-stream'));
+});
+
+test('legacy blob route returns not found for unreadable keys', async t => {
+  const openBlobV1 = Sinon.stub();
+  const controller = legacyBlobController({
+    getReadableWorkspaceBlobManifestV1: Sinon.stub().resolves({
+      version: 1,
+      entries: [],
+    }),
+    openBlobV1,
+  });
+
+  await t.throwsAsync(
+    controller.blob(
+      { ...t.context.u1, id: 'actor' } as never,
+      'workspace',
+      'missing',
+      legacyBlobResponse().response as never
+    ),
+    { instanceOf: BlobNotFound }
+  );
+  t.true(openBlobV1.notCalled);
+});
+
+test('legacy blob route propagates manifest denials', async t => {
+  const controller = legacyBlobController({
+    getReadableWorkspaceBlobManifestV1: Sinon.stub().rejects(
+      new Error('blob_workspace_member_required')
+    ),
+  });
+
+  await t.throwsAsync(
+    controller.blob(
+      { ...t.context.u1, id: 'actor' } as never,
+      'workspace',
+      'blob-key',
+      legacyBlobResponse().response as never
+    ),
+    { message: 'blob_workspace_member_required' }
+  );
+});
+
+test('legacy blob route requires sign-in', async t => {
+  await t.context.app.logout();
+  const response = await t.context.app.GET('/api/workspaces/public/blobs/test');
+  t.is(response.status, HttpStatus.UNAUTHORIZED);
 });
 
 test('source-scoped blob controller maps manifests and closes streams', async t => {

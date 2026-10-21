@@ -17,6 +17,7 @@ import type { Request, Response } from 'express';
 import {
   applyAttachHeaders,
   BadRequest,
+  BlobNotFound,
   CallMetric,
   CommentAttachmentNotFound,
   DocActionDenied,
@@ -24,7 +25,6 @@ import {
   DocNotFound,
   getRequestTrackerId,
   InvalidHistoryTimestamp,
-  UnsupportedClientVersion,
 } from '../../base';
 import { DocMode, Models, PublicDocMode } from '../../models';
 import { buildPublicRootDoc, canonicalizeDocumentIdentity } from '../../native';
@@ -144,7 +144,57 @@ export class WorkspacesController {
     @Res() res: Response
   ) {
     const source = this.blobSource(workspaceId, sourceType, docId, timestampMs);
-    const blob = await this.runtime.openBlobV1(user?.id, source, name);
+    await this.streamBlob(user?.id, source, name, res);
+  }
+
+  // Compatibility shim for clients without source-scoped blobs (#15575), e.g. the
+  // 0.27.x mobile apps. Remove once a released mobile build uses /blobs/v1.
+  @Get('/:id/blobs/:name')
+  @CallMetric('controllers', 'workspace_get_blob')
+  async blob(
+    @CurrentUser() user: CurrentUser,
+    @Param('id') workspaceId: string,
+    @Param('name') name: string,
+    @Res() res: Response
+  ) {
+    const source = await this.findReadableBlobSource(
+      user.id,
+      workspaceId,
+      name
+    );
+    if (!source) {
+      throw new BlobNotFound({ spaceId: workspaceId, blobId: name });
+    }
+    await this.streamBlob(user.id, source, name, res);
+  }
+
+  private async findReadableBlobSource(
+    actorUserId: string,
+    workspaceId: string,
+    key: string
+  ) {
+    let cursor: string | undefined;
+    do {
+      const manifest = await this.runtime.getReadableWorkspaceBlobManifestV1({
+        actorUserId,
+        workspaceId,
+        ...(cursor ? { cursor } : {}),
+        limit: 512,
+      });
+      const entry = manifest.entries.find(entry => entry.key === key);
+      if (entry) return entry.source;
+      cursor = manifest.nextCursor;
+    } while (cursor);
+    return undefined;
+  }
+
+  private async streamBlob(
+    actorUserId: string | undefined,
+    source: BlobSourceV1,
+    name: string,
+    res: Response
+  ) {
+    const blob = await this.runtime.openBlobV1(actorUserId, source, name);
     res.setHeader('content-type', blob.mime);
     res.setHeader('content-length', blob.size);
     res.setHeader('last-modified', new Date(blob.lastModifiedMs).toUTCString());
@@ -164,17 +214,6 @@ export class WorkspacesController {
     } finally {
       await this.runtime.closeBlobStreamV1(blob.streamId);
     }
-  }
-
-  @Public()
-  @Get('/:id/blobs/:name')
-  @CallMetric('controllers', 'workspace_get_blob')
-  async blob(@Req() req: Request) {
-    const clientVersion = req.header('x-affine-version');
-    throw new UnsupportedClientVersion({
-      clientVersion: clientVersion ?? 'unset_or_invalid',
-      requiredVersion: '>=0.27.0 (source-scoped blob protocol)',
-    });
   }
 
   private blobSource(
