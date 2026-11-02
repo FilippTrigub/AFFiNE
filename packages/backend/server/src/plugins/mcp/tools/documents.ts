@@ -1,5 +1,6 @@
 import z from 'zod/v3';
 
+import { PRESERVED_FLAVOURS } from '../../../core/doc/preserve-blocks';
 import type { McpToolContext } from './context';
 import {
   abortIfNeeded,
@@ -33,17 +34,10 @@ const PAGE_LINK_HINT =
 const UNSUPPORTED_NOTE =
   'This document contains blocks that markdown cannot represent';
 
-const UPDATE_BLOCKING_FLAVOURS = new Set([
-  'affine:attachment',
-  'affine:embed-linked-doc',
-  'affine:embed-synced-doc',
-  'affine:latex',
-]);
-
 /**
  * Block types markdown cannot carry. The reader also lists structural blocks
- * (note, surface, frame) and callouts for every page; only these make the
- * native update refuse a document or get lost when copying.
+ * (note, surface, frame) and callouts for every page; only these are lost when
+ * copying. update_document keeps the preserved ones and refuses the rest.
  */
 export function unrepresentableBlocks(content: {
   knownUnsupportedBlocks: string[];
@@ -55,7 +49,7 @@ export function unrepresentableBlocks(content: {
     ...new Set([
       ...content.knownUnsupportedBlocks
         .map(flavourOf)
-        .filter(flavour => UPDATE_BLOCKING_FLAVOURS.has(flavour)),
+        .filter(flavour => PRESERVED_FLAVOURS.has(flavour)),
       ...content.unknownBlocks.map(flavourOf),
     ]),
   ];
@@ -69,7 +63,7 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
   const readDocument = mcpTool('read', 'all', {
     name: 'read_document',
     title: 'Read Document',
-    description: `Read a document with given ID as markdown. Page references are rendered as \`[Title](affine://<docId>)\`. If the document holds blocks markdown cannot represent (database, attachment, embedded page, ...), a note at the end lists them: update_document refuses such documents.`,
+    description: `Read a document with given ID as markdown. Page references are rendered as \`[Title](affine://<docId>)\`. If the document holds blocks markdown cannot represent (attachment, embedded page, LaTeX, ...), a note at the end lists them and says whether update_document keeps them in place or refuses the document.`,
     parser: z.object({ docId: z.string() }),
     inputSchema: {
       type: 'object',
@@ -98,7 +92,13 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
       let markdown = await presentMarkdown(ctx, content.markdown);
       const unsupported = unrepresentableBlocks(content);
       if (unsupported.length) {
-        markdown += `\n\n<!-- ${UNSUPPORTED_NOTE}: ${unsupported.join(', ')}. update_document will refuse it; use the AFFiNE editor. -->\n`;
+        const refused = unsupported.some(
+          flavour => !PRESERVED_FLAVOURS.has(flavour)
+        );
+        const outcome = refused
+          ? 'update_document will refuse it; use the AFFiNE editor.'
+          : 'update_document keeps them where they are.';
+        markdown += `\n\n<!-- ${UNSUPPORTED_NOTE}: ${unsupported.join(', ')}. ${outcome} -->\n`;
       }
       return toolText(markdown);
     },
@@ -225,7 +225,7 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
   const updateDocument = mcpTool('write', 'all', {
     name: 'update_document',
     title: 'Update Document',
-    description: `Replace a document body with new markdown (body only, not the title). Uses structural diffing, so unchanged blocks keep their identity and history. ${PAGE_LINK_HINT} Refuses documents that contain blocks markdown cannot represent (read_document notes these).`,
+    description: `Replace a document body with new markdown (body only, not the title). Uses structural diffing, so unchanged blocks keep their identity and history. ${PAGE_LINK_HINT} Attachments, embedded pages and LaTeX blocks are kept in place (they are not part of the markdown, so leave them out). Refuses documents with database blocks or other blocks it cannot keep (read_document notes these).`,
     parser: z.object({
       docId: z.string(),
       content: z.string(),
@@ -263,7 +263,7 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
         const message = errorMessage(error);
         if (/unsupported/i.test(message)) {
           return toolError(
-            `Document ${docId} contains blocks markdown cannot represent, so it cannot be updated through MCP: ${message}`
+            `Document ${docId} contains blocks that update_document can neither represent nor keep (such as a database), so it cannot be updated through MCP: ${message}`
           );
         }
         return docNotFound(docId);

@@ -7,10 +7,10 @@ import {
   createDocWithMarkdown,
   updateDocProperties,
   updateDocTitle,
-  updateDocWithMarkdown,
   updateRootDocMetaTitle,
 } from '../../native';
 import { PgWorkspaceDocStorageAdapter } from './adapters/workspace';
+import { updateDocKeepingBlocks } from './preserve-blocks';
 
 export interface CreateDocResult {
   docId: string;
@@ -190,7 +190,8 @@ export class DocWriter {
           existingDoc.bin.byteOffset,
           existingDoc.bin.byteLength
         );
-    const delta = updateDocWithMarkdown(existingBinary, markdown, docId);
+    // Attachments, embedded pages and LaTeX are kept, not refused.
+    const delta = updateDocKeepingBlocks(existingBinary, markdown, docId);
 
     // Push only the delta changes
     const timestamp = await this.storage.pushDocUpdates(

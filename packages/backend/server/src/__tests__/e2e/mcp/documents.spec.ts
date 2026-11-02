@@ -1,3 +1,7 @@
+import * as Y from 'yjs';
+
+import { WorkspaceYjsMutator } from '../../../core/doc';
+import { DocRole } from '../../../models';
 import { app, e2e } from '../test';
 import {
   call,
@@ -186,3 +190,76 @@ e2e('an uploaded image can be embedded by blob key', async t => {
   });
   t.is(again.key, uploaded.key);
 });
+
+e2e(
+  'update_document keeps an attachment in place, also for an agent',
+  async t => {
+    const { owner, workspace } = await ownedWorkspace();
+    const ws = workspace.id;
+    const doc = await call(owner.id, ws, 'create_document', {
+      title: 'Target List',
+      content: '### List\n\n|Column|Title|\n|---|---|\n\nEnd',
+    });
+
+    // Put an attachment between the heading and the table, as the editor would.
+    await app
+      .get(WorkspaceYjsMutator)
+      .mutate(ws, doc.docId, { editorId: owner.id }, ydoc => {
+        const blocks = ydoc.getMap<Y.Map<unknown>>('blocks');
+        const note = [...blocks.values()].find(
+          block => block.get('sys:flavour') === 'affine:note'
+        )!;
+        const attachment = new Y.Map<unknown>();
+        attachment.set('sys:id', 'csv-attachment');
+        attachment.set('sys:flavour', 'affine:attachment');
+        attachment.set('sys:version', 1);
+        attachment.set('sys:children', new Y.Array());
+        attachment.set('prop:name', 'companies.csv');
+        attachment.set('prop:sourceId', 'blob-key');
+        blocks.set('csv-attachment', attachment);
+        (note.get('sys:children') as Y.Array<string>).insert(1, [
+          'csv-attachment',
+        ]);
+      });
+
+    const agent = await app.models.workspace.provisionAgent(ws);
+    await app.models.docUser.set(ws, doc.docId, agent.id, DocRole.Editor);
+
+    const read = await call(agent.id, ws, 'read_document', {
+      docId: doc.docId,
+    });
+    t.true(read.includes('affine:attachment'));
+    t.true(read.includes('update_document keeps them where they are'));
+
+    await call(agent.id, ws, 'update_document', {
+      docId: doc.docId,
+      content:
+        '### List\n\n|Name|Country|\n|---|---|\n|2H ENERGY|France|\n\nEnd',
+    });
+
+    const ydoc = await loadYDoc(ws, doc.docId);
+    const blocks = ydoc.getMap<Y.Map<unknown>>('blocks');
+    const attachment = blocks.get('csv-attachment');
+    t.is(attachment?.get('prop:name'), 'companies.csv');
+    t.is(attachment?.get('prop:sourceId'), 'blob-key');
+    const note = [...blocks.values()].find(
+      block => block.get('sys:flavour') === 'affine:note'
+    )!;
+    t.deepEqual(
+      (note.get('sys:children') as Y.Array<string>)
+        .toArray()
+        .map(id => blocks.get(id)?.get('sys:flavour')),
+      [
+        'affine:paragraph',
+        'affine:attachment',
+        'affine:table',
+        'affine:paragraph',
+      ]
+    );
+
+    const after = await call(owner.id, ws, 'read_document', {
+      docId: doc.docId,
+    });
+    t.true(after.includes('2H ENERGY'));
+  }
+);
