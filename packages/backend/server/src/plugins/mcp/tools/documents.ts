@@ -2,6 +2,7 @@ import z from 'zod/v3';
 
 import { PRESERVED_FLAVOURS } from '../../../core/doc/preserve-blocks';
 import type { McpToolContext } from './context';
+import { markdownWithDatabaseMarkers } from './database-markdown';
 import {
   abortIfNeeded,
   docNotFound,
@@ -63,7 +64,7 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
   const readDocument = mcpTool('read', 'all', {
     name: 'read_document',
     title: 'Read Document',
-    description: `Read a document with given ID as markdown. Page references are rendered as \`[Title](affine://<docId>)\`. If the document holds blocks markdown cannot represent (attachment, embedded page, LaTeX, ...), a note at the end lists them and says whether update_document keeps them in place or refuses the document.`,
+    description: `Read a document with given ID as markdown. Page references are rendered as \`[Title](affine://<docId>)\`. Each database shows as one \`<!-- database id=... -->\` line; read its rows with read_database. If the document holds other blocks markdown cannot represent (attachment, embedded page, LaTeX, ...), a note at the end lists them and says whether update_document keeps them in place or refuses the document.`,
     parser: z.object({ docId: z.string() }),
     inputSchema: {
       type: 'object',
@@ -79,12 +80,17 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
       const abortedAfterPermission = abortIfNeeded(options.signal);
       if (abortedAfterPermission) return abortedAfterPermission;
 
-      const content = await deps.reader.getDocMarkdown(
-        workspaceId,
-        docId,
-        false
-      );
-      if (!content) return docNotFound(docId);
+      const plain = await deps.reader.getDocMarkdown(workspaceId, docId, false);
+      if (!plain) return docNotFound(docId);
+      // Databases become one marker line each (see database-markdown.ts).
+      const ydoc = await deps.yjs.load(workspaceId, docId);
+      let content: typeof plain;
+      try {
+        const marked = markdownWithDatabaseMarkers(workspaceId, docId, ydoc);
+        content = marked ? { ...plain, ...marked } : plain;
+      } finally {
+        ydoc.destroy();
+      }
 
       const abortedAfterRead = abortIfNeeded(options.signal);
       if (abortedAfterRead) return abortedAfterRead;
@@ -225,7 +231,7 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
   const updateDocument = mcpTool('write', 'all', {
     name: 'update_document',
     title: 'Update Document',
-    description: `Replace a document body with new markdown (body only, not the title). Uses structural diffing, so unchanged blocks keep their identity and history. ${PAGE_LINK_HINT} Attachments, embedded pages and LaTeX blocks are kept in place (they are not part of the markdown, so leave them out). Refuses documents with database blocks or other blocks it cannot keep (read_document notes these).`,
+    description: `Replace a document body with new markdown (body only, not the title). Uses structural diffing, so unchanged blocks keep their identity and history. ${PAGE_LINK_HINT} Databases, attachments, embedded pages and LaTeX blocks are kept in place (they are not part of the markdown; a database marker line may stay or go, the database stays either way). Edit databases with the database tools. Refuses documents with other blocks it cannot keep (read_document notes these).`,
     parser: z.object({
       docId: z.string(),
       content: z.string(),
@@ -263,7 +269,7 @@ export function buildDocumentTools(ctx: McpToolContext): McpTool[] {
         const message = errorMessage(error);
         if (/unsupported/i.test(message)) {
           return toolError(
-            `Document ${docId} contains blocks that update_document can neither represent nor keep (such as a database), so it cannot be updated through MCP: ${message}`
+            `Document ${docId} contains blocks that update_document can neither represent nor keep, so it cannot be updated through MCP: ${message}`
           );
         }
         return docNotFound(docId);

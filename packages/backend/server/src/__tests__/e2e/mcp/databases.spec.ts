@@ -96,10 +96,163 @@ e2e('create_database builds a database the editor can load', async t => {
   // An empty value leaves no cell.
   t.false(cells.get(rowIds[1])!.has(columns[2].id));
 
-  // The reader renders it, so the agent can read back what it wrote.
+  // read_document shows a marker; read_database shows the rows.
   const read = await call(agent.id, ws, 'read_document', { docId: doc.docId });
-  t.true(read.includes('2H ENERGY'));
-  t.true(read.includes('https://www.2henergy.fr'));
+  t.true(
+    read.includes(
+      `<!-- database id=${created.databaseId} "Companies" (2 rows, 3 columns)`
+    )
+  );
+  t.false(read.includes('2H ENERGY'));
+  const rows = await call(agent.id, ws, 'read_database', { docId: doc.docId });
+  t.deepEqual(
+    rows.rows.map((row: { values: unknown }) => row.values),
+    [
+      {
+        Exposant: '2H ENERGY',
+        Pays: 'France',
+        'Site web': 'https://www.2henergy.fr',
+      },
+      { Exposant: '3M', Pays: 'France' },
+    ]
+  );
+});
+
+e2e('an agent edits a database and the text around it', async t => {
+  const { owner, workspace } = await ownedWorkspace();
+  const ws = workspace.id;
+  const doc = await call(owner.id, ws, 'create_document', {
+    title: 'Pipeline',
+    content: 'Intro',
+  });
+  const agent = await app.models.workspace.provisionAgent(ws);
+  await app.models.docUser.set(ws, doc.docId, agent.id, DocRole.Editor);
+  const docId = doc.docId;
+
+  await call(agent.id, ws, 'create_database', {
+    docId,
+    title: 'Leads',
+    columns: ['Company', 'Country', { name: 'Stage', type: 'select' }],
+    rows: [
+      ['2H ENERGY', 'France', 'Lead'],
+      ['3M', 'USA', 'Lead'],
+      ['Airbus', 'France'],
+    ],
+  });
+  const read = async (args: Record<string, unknown> = {}) =>
+    await call(agent.id, ws, 'read_database', { docId, ...args });
+  const ids = (await read()).rows.map((row: { id: string }) => row.id);
+
+  await call(agent.id, ws, 'update_database_rows', {
+    docId,
+    updates: [{ rowId: ids[2], values: { Stage: 'Won', Country: null } }],
+  });
+  await call(agent.id, ws, 'add_database_rows', {
+    docId,
+    rows: [{ Company: 'Safran', Stage: 'lead' }],
+  });
+  await call(agent.id, ws, 'remove_database_rows', {
+    docId,
+    rowIds: [ids[1]],
+  });
+  const columns = await call(agent.id, ws, 'update_database_columns', {
+    docId,
+    ops: [
+      { op: 'set_type', column: 'Country', type: 'select' },
+      { op: 'add', name: 'Met', type: 'date' },
+    ],
+  });
+  t.is(columns.columns.length, 2);
+
+  const after = await read();
+  t.deepEqual(
+    after.columns.map(
+      (c: { name: string; type: string }) => `${c.name}:${c.type}`
+    ),
+    ['Company:title', 'Country:select', 'Stage:select', 'Met:date']
+  );
+  t.deepEqual(
+    after.rows.map((row: { values: unknown }) => row.values),
+    [
+      { Company: '2H ENERGY', Country: 'France', Stage: 'Lead' },
+      { Company: 'Airbus', Stage: 'Won' },
+      { Company: 'Safran', Stage: 'Lead' },
+    ]
+  );
+  const found = await read({ search: 'airbus' });
+  t.is(found.matchingRows, 1);
+  const paged = await read({ limit: 2 });
+  t.is(paged.rows.length, 2);
+  t.is(paged.nextOffset, 2);
+
+  // update_document edits the text and keeps the database where it was.
+  const markdown = await call(agent.id, ws, 'read_document', { docId });
+  await call(agent.id, ws, 'update_document', {
+    docId,
+    content: markdown.replace('Intro', 'New intro') + '\nOutro\n',
+  });
+  const text = await call(agent.id, ws, 'read_document', { docId });
+  t.true(text.startsWith('New intro'));
+  t.true(text.indexOf('<!-- database id=') < text.indexOf('Outro'));
+  t.is((await read()).rows.length, 3);
+
+  // Dropping the marker line keeps the database too.
+  await call(agent.id, ws, 'update_document', {
+    docId,
+    content: 'Only text\n',
+  });
+  t.is((await read()).rows.length, 3);
+});
+
+e2e('a failed database edit changes nothing', async t => {
+  const { owner, workspace } = await ownedWorkspace();
+  const ws = workspace.id;
+  const doc = await call(owner.id, ws, 'create_document', {
+    title: 'D',
+    content: 'x',
+  });
+  const created = await call(owner.id, ws, 'create_database', {
+    docId: doc.docId,
+    columns: ['Name', { name: 'Staff', type: 'number' }],
+    rows: [['a', 1]],
+  });
+  const [row] = (
+    await call(owner.id, ws, 'read_database', { docId: doc.docId })
+  ).rows;
+  const before = Y.encodeStateVector(await loadYDoc(ws, doc.docId));
+
+  const bad = await callTool(owner.id, ws, 'update_database_rows', {
+    docId: doc.docId,
+    databaseId: created.databaseId,
+    updates: [
+      { rowId: row.id, values: { Name: 'renamed' } },
+      { rowId: row.id, values: { Staff: 'lots' } },
+    ],
+  });
+  t.true(bad.isError);
+  t.regex(bad.text, /Nothing was changed.*Column "Staff"/);
+  const missing = await callTool(owner.id, ws, 'remove_database_rows', {
+    docId: doc.docId,
+    rowIds: [row.id, 'gone'],
+  });
+  t.true(missing.isError);
+  t.deepEqual(Y.encodeStateVector(await loadYDoc(ws, doc.docId)), before);
+
+  // A reader grant may read the database, not change it.
+  const agent = await app.models.workspace.provisionAgent(ws);
+  await app.models.docUser.set(ws, doc.docId, agent.id, DocRole.Reader);
+  t.false(
+    (await callTool(agent.id, ws, 'read_database', { docId: doc.docId }))
+      .isError
+  );
+  t.true(
+    (
+      await callTool(agent.id, ws, 'add_database_rows', {
+        docId: doc.docId,
+        rows: [{ Name: 'b' }],
+      })
+    ).isError
+  );
 });
 
 e2e('create_database needs edit rights and sane input', async t => {

@@ -68,6 +68,7 @@ e2e('read-only credentials list no write tools', async t => {
       'list_folders',
       'list_history',
       'list_tags',
+      'read_database',
       'read_document',
       'read_version',
     ]

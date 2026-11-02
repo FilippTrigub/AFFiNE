@@ -2,7 +2,7 @@ import test from 'ava';
 import * as Y from 'yjs';
 
 import { createDocWithMarkdown, parseYDocToMarkdown } from '../../../native';
-import { updateDocKeepingBlocks } from '../preserve-blocks';
+import { blockSentinel, updateDocKeepingBlocks } from '../preserve-blocks';
 
 const DOC_ID = 'preserve-blocks-doc';
 const BODY = 'Intro\n\n|a|b|\n|---|---|\n|1|2|\n\nOutro\n';
@@ -68,11 +68,12 @@ function outline(doc: Y.Doc) {
  * Apply the update to a replica that already has the doc open, as another
  * client would, and record what it saw happen to the extra blocks.
  */
-function update(doc: Y.Doc, markdown: string) {
+function update(doc: Y.Doc, markdown: string, keepDatabases = false) {
   const delta = updateDocKeepingBlocks(
     Buffer.from(Y.encodeStateAsUpdate(doc)),
     markdown,
-    DOC_ID
+    DOC_ID,
+    { keepDatabases }
   );
   const replica = new Y.Doc();
   Y.applyUpdate(replica, Y.encodeStateAsUpdate(doc));
@@ -198,9 +199,38 @@ test('a no-op update changes nothing', t => {
   ]);
 });
 
-test('a database block is still refused', t => {
+test('a database block is refused unless the caller keeps databases', t => {
   const doc = pageWith([{ flavour: 'affine:database', at: 1 }]);
   t.throws(() => update(doc, 'Intro\n'), { message: /unsupported/i });
+});
+
+test('keepDatabases keeps a database and its rows untouched', t => {
+  const doc = pageWith([{ flavour: 'affine:database', at: 1 }]);
+  const blocks = blocksOf(doc);
+  doc.transact(() => {
+    const row = new Y.Map<unknown>();
+    row.set('sys:id', 'extra-row');
+    row.set('sys:flavour', 'affine:paragraph');
+    row.set('sys:children', new Y.Array());
+    row.set('prop:type', 'text');
+    row.set('prop:text', new Y.Text('2H ENERGY'));
+    blocks.set('extra-row', row);
+    childrenOf(blocks.get('extra0')!).push(['extra-row']);
+  });
+
+  const { replica, events, stillLive } = update(doc, 'Intro\n\nNew\n', true);
+  t.deepEqual(outline(replica), [
+    'paragraph:Intro',
+    'database',
+    'paragraph:New',
+  ]);
+  t.deepEqual(events, []);
+  t.true(stillLive);
+  const row = blocksOf(replica).get('extra-row')!;
+  t.is((row.get('prop:text') as Y.Text).toString(), '2H ENERGY');
+  t.deepEqual(childrenOf(blocksOf(replica).get('extra0')!).toArray(), [
+    'extra-row',
+  ]);
 });
 
 test('an attachment inside a deleted list item moves up to the note', t => {
@@ -230,4 +260,67 @@ test('an attachment inside a deleted list item moves up to the note', t => {
   ]);
   t.deepEqual(events, []);
   t.true(stillLive);
+});
+
+test('a database marker places the database where the markdown has it', t => {
+  const doc = pageWith([{ flavour: 'affine:database', at: 1 }]);
+  const marker = blockSentinel('extra0');
+  const cases: [string, string[]][] = [
+    // Text written after the marker lands after the database.
+    [
+      `Intro\n\n${marker}\n\nNew\n\n${BODY.slice('Intro\n\n'.length)}`,
+      [
+        'paragraph:Intro',
+        'database',
+        'paragraph:New',
+        'table',
+        'paragraph:Outro',
+      ],
+    ],
+    // Moving the marker moves the database.
+    [`Outro\n\n${marker}\n`, ['paragraph:Outro', 'database']],
+    [
+      `${marker}\n\nIntro\n\nOutro\n`,
+      ['database', 'paragraph:Intro', 'paragraph:Outro'],
+    ],
+    // No marker: it stays after the block that preceded it.
+    ['Intro\n\nOutro\n', ['paragraph:Intro', 'database', 'paragraph:Outro']],
+  ];
+  for (const [markdown, expected] of cases) {
+    const { replica, events, stillLive } = update(doc, markdown, true);
+    t.deepEqual(outline(replica), expected, markdown);
+    t.deepEqual(events, [], markdown);
+    t.true(stillLive, markdown);
+    // Nothing in the delta waits on structs this doc never gets.
+    t.is(replica.store.pendingStructs, null, markdown);
+    t.is(replica.store.pendingDs, null, markdown);
+    t.false(
+      [...blocksOf(replica).values()].some(block =>
+        String(block.get('prop:text') ?? '').startsWith('AFFINEMCPBLOCK')
+      ),
+      markdown
+    );
+  }
+});
+
+test('a sentinel glued to a paragraph never shows up as text', t => {
+  const doc = pageWith([{ flavour: 'affine:database', at: 1 }]);
+  const marker = blockSentinel('extra0');
+  for (const markdown of [
+    `Intro\n${marker}\nOutro\n`,
+    `Intro ${marker} more\n\nOutro\n`,
+    `- item\n${marker}\n`,
+  ]) {
+    const { replica, events, stillLive } = update(doc, markdown, true);
+    t.true(outline(replica).includes('database'), markdown);
+    t.deepEqual(events, [], markdown);
+    t.true(stillLive, markdown);
+    t.false(
+      [...blocksOf(replica).values()].some(block =>
+        String(block.get('prop:text') ?? '').includes('AFFINEMCPBLOCK')
+      ),
+      markdown
+    );
+    t.is(replica.store.pendingStructs, null, markdown);
+  }
 });

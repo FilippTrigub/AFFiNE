@@ -1,4 +1,5 @@
 import type { McpToolContext } from './context';
+import { markersToSentinels } from './database-markdown';
 import { sanitizeName } from './define';
 import { linkifyReferences, renderReadReferences } from './references';
 import { textifyTableCells } from './table-cells';
@@ -148,7 +149,16 @@ export async function updateDocumentContent(
   docId: string,
   markdown: string
 ) {
-  await ctx.deps.writer.updateDoc(ctx.workspaceId, docId, markdown, ctx.userId);
+  // read_document shows databases as marker lines, never as tables, so the
+  // markdown cannot hold a copy of one: keep the databases themselves, placed
+  // where their markers are.
+  await ctx.deps.writer.updateDoc(
+    ctx.workspaceId,
+    docId,
+    markersToSentinels(markdown),
+    ctx.userId,
+    { keepDatabases: true }
+  );
   return await linkifyDoc(ctx, docId);
 }
 
