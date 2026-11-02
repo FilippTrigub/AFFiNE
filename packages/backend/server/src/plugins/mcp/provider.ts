@@ -20,6 +20,7 @@ import { buildBlobTools } from './tools/blobs';
 import { buildCollaborationTools } from './tools/collaboration';
 import { buildCollectionTools } from './tools/collections';
 import { McpToolContext, type McpToolDeps } from './tools/context';
+import { buildDatabaseTools } from './tools/databases';
 import type { McpTool, WorkspaceMcpToolDefinition } from './tools/define';
 import { buildDocumentInfoTools } from './tools/document-info';
 import { buildDocumentTools } from './tools/documents';
@@ -102,6 +103,7 @@ export class WorkspaceMcpProvider {
     const all: McpTool[] = [
       ...buildDocumentTools(ctx),
       ...buildDocumentInfoTools(ctx),
+      ...buildDatabaseTools(ctx),
       ...buildBlobTools(ctx),
       ...buildFolderTools(ctx),
       ...buildTagTools(ctx),
