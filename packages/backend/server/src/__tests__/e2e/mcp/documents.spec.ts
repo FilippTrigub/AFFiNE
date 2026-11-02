@@ -263,3 +263,45 @@ e2e(
     t.true(after.includes('2H ENERGY'));
   }
 );
+
+/** Every table cell value of a doc, as `text` (Y.Text) or `string` (broken). */
+function tableCellKinds(ydoc: Y.Doc) {
+  const kinds: string[] = [];
+  for (const block of ydoc.getMap<Y.Map<unknown>>('blocks').values()) {
+    if (block.get('sys:flavour') !== 'affine:table') continue;
+    for (const [key, value] of block) {
+      if (!key.startsWith('prop:cells.')) continue;
+      kinds.push(value instanceof Y.Text ? `text:${value}` : typeof value);
+    }
+  }
+  return kinds.sort();
+}
+
+e2e(
+  'markdown tables are stored with rich-text cells the editor can show',
+  async t => {
+    const { owner, workspace } = await ownedWorkspace();
+    const ws = workspace.id;
+    const doc = await call(owner.id, ws, 'create_document', {
+      title: 'Companies',
+      content: '|Name|Country|\n|---|---|\n|2H ENERGY|France|',
+    });
+    t.deepEqual(tableCellKinds(await loadYDoc(ws, doc.docId)), [
+      'text:2H ENERGY',
+      'text:Country',
+      'text:France',
+      'text:Name',
+    ]);
+
+    await call(owner.id, ws, 'update_document', {
+      docId: doc.docId,
+      content: '|Name|Country|\n|---|---|\n|3M|France|',
+    });
+    t.deepEqual(tableCellKinds(await loadYDoc(ws, doc.docId)), [
+      'text:3M',
+      'text:Country',
+      'text:France',
+      'text:Name',
+    ]);
+  }
+);

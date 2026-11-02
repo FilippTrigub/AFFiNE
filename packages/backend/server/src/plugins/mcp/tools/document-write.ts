@@ -1,6 +1,7 @@
 import type { McpToolContext } from './context';
 import { sanitizeName } from './define';
 import { linkifyReferences, renderReadReferences } from './references';
+import { textifyTableCells } from './table-cells';
 import {
   addFolderLink,
   editPageTags,
@@ -40,8 +41,9 @@ export function stripLeadingTitle(markdown: string) {
 }
 
 /**
- * Convert links to pages of this workspace into real page references. Runs
- * after the native writer, which stores every link as a plain URL.
+ * Convert links to pages of this workspace into real page references, and
+ * table cells into rich text. Runs after the native writer, which stores every
+ * link as a plain URL and every table cell as a plain string.
  */
 export async function linkifyDoc(ctx: McpToolContext, docId: string) {
   const root = await loadRoot(ctx);
@@ -57,7 +59,10 @@ export async function linkifyDoc(ctx: McpToolContext, docId: string) {
     ctx.workspaceId,
     docId,
     { editorId: ctx.userId },
-    doc => linkifyReferences(doc, ctx.workspaceId, existing)
+    doc => {
+      textifyTableCells(doc);
+      return linkifyReferences(doc, ctx.workspaceId, existing);
+    }
   );
   return result;
 }
